@@ -1,0 +1,92 @@
+import type { TokenizedStock } from "./types";
+
+// SAMPLE DATA ONLY — made-up numbers for building the UI.
+// These are not live prices and not real on-chain figures.
+// They are deliberately varied so every warning state shows up somewhere.
+
+const COMMON_RISKS = [
+  "You hold a token that tracks the share, not the share itself — usually no voting rights.",
+  "Depends on the issuer and its custodian actually holding the underlying shares.",
+  "Tokenized stocks are restricted in some countries (often including the US). Check your eligibility.",
+];
+
+export const sampleTokens: TokenizedStock[] = [
+  {
+    id: "tslax",
+    symbol: "TSLAx",
+    chain: "BNB Chain",
+    underlying: { ticker: "TSLA", name: "Tesla, Inc.", exchange: "NASDAQ", price: 248.5 },
+    provider: { name: "xStocks (Backed)", backing: "1:1 by shares held with a regulated custodian" },
+    tokenPrice: 248.9,
+    bid: 248.6,
+    ask: 249.2,
+    liquidityUsd: 1_850_000,
+    volume24hUsd: 3_200_000,
+    risks: [...COMMON_RISKS, "TSLA is a highly volatile stock — big daily swings are normal."],
+  },
+  {
+    id: "aaplon",
+    symbol: "AAPLon",
+    chain: "BNB Chain",
+    underlying: { ticker: "AAPL", name: "Apple Inc.", exchange: "NASDAQ", price: 227.3 },
+    provider: { name: "Ondo Global Markets", backing: "1:1 by shares held with a broker-dealer" },
+    tokenPrice: 227.1,
+    bid: 226.95,
+    ask: 227.35,
+    liquidityUsd: 2_400_000,
+    volume24hUsd: 4_100_000,
+    risks: COMMON_RISKS,
+  },
+  {
+    id: "spyon",
+    symbol: "SPYon",
+    chain: "BNB Chain",
+    underlying: { ticker: "SPY", name: "SPDR S&P 500 ETF", exchange: "NYSE Arca", price: 668.2 },
+    provider: { name: "Ondo Global Markets", backing: "1:1 by ETF shares held with a broker-dealer" },
+    tokenPrice: 668.4,
+    bid: 668.1,
+    ask: 668.7,
+    liquidityUsd: 5_100_000,
+    volume24hUsd: 7_800_000,
+    risks: [...COMMON_RISKS, "An ETF tracks 500 companies, so it is usually less volatile than one stock."],
+  },
+  {
+    id: "msfton",
+    symbol: "MSFTon",
+    chain: "BNB Chain",
+    underlying: { ticker: "MSFT", name: "Microsoft Corp.", exchange: "NASDAQ", price: 512.6 },
+    provider: { name: "Ondo Global Markets", backing: "1:1 by shares held with a broker-dealer" },
+    tokenPrice: 511.2,
+    bid: 510.5,
+    ask: 511.9,
+    liquidityUsd: 380_000,
+    volume24hUsd: 420_000,
+    risks: COMMON_RISKS,
+  },
+  {
+    id: "nvdax",
+    symbol: "NVDAx",
+    chain: "BNB Chain",
+    underlying: { ticker: "NVDA", name: "NVIDIA Corp.", exchange: "NASDAQ", price: 182.4 },
+    provider: { name: "xStocks (Backed)", backing: "1:1 by shares held with a regulated custodian" },
+    tokenPrice: 185.1,
+    bid: 184.2,
+    ask: 186.0,
+    liquidityUsd: 640_000,
+    volume24hUsd: 910_000,
+    risks: COMMON_RISKS,
+  },
+  {
+    id: "coinx",
+    symbol: "COINx",
+    chain: "BNB Chain",
+    underlying: { ticker: "COIN", name: "Coinbase Global", exchange: "NASDAQ", price: 318.75 },
+    provider: { name: "xStocks (Backed)", backing: "1:1 by shares held with a regulated custodian" },
+    tokenPrice: 326.4,
+    bid: 323.0,
+    ask: 329.8,
+    liquidityUsd: 120_000,
+    volume24hUsd: 85_000,
+    risks: [...COMMON_RISKS, "COIN moves closely with crypto prices, which adds extra volatility."],
+  },
+];
