@@ -41,7 +41,7 @@ function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFail
   const now = useNow(true);
   if (data.source === "sample") {
     return (
-      <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs">
+      <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs md:mb-0 md:max-w-xl">
         <p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Sample data</p>
         <p className="mt-1">These are made-up numbers, not live prices. {data.notice}</p>
       </div>
@@ -53,7 +53,7 @@ function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFail
   const ageMin = Math.floor((now - updated.getTime()) / 60_000);
   const stale = refreshFailed || now - updated.getTime() > STALE_AFTER_MS;
   return (
-    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted md:mb-0">
       <span
         className={`rounded-full px-2 py-0.5 font-semibold ${
           stale
@@ -100,18 +100,25 @@ function useWalletQuotedSpread(token: TokenizedStock | undefined) {
 // load (several seconds while live quotes are gathered).
 function ScannerSkeleton() {
   const block = "animate-pulse rounded-2xl bg-line/60";
+  const bar = "animate-pulse rounded-xl bg-line/60";
   return (
-    <div className="grid gap-6 md:grid-cols-[260px_1fr]" aria-busy="true" aria-label="Loading tokens">
-      <div className="grid content-start gap-2">
-        <div className="h-10 animate-pulse rounded-xl bg-line/60" />
-        <div className="h-11 animate-pulse rounded-xl bg-line/60" />
-        <div className="flex gap-2 overflow-hidden md:grid">
+    <div className="grid gap-6" aria-busy="true" aria-label="Loading tokens">
+      <div className="grid gap-3">
+        <div className="flex justify-between gap-4">
+          <div className={`${bar} h-5 w-56`} />
+          <div className={`${bar} hidden h-5 w-64 md:block`} />
+        </div>
+        <div className="grid gap-3 md:flex">
+          <div className={`${bar} h-10 md:w-72`} />
+          <div className={`${bar} h-11 md:h-10 md:w-96`} />
+        </div>
+        <div className="flex gap-2 overflow-hidden">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="h-14 w-44 shrink-0 animate-pulse rounded-xl bg-line/60 md:w-full" />
+            <div key={i} className={`${bar} h-16 w-56 shrink-0`} />
           ))}
         </div>
       </div>
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
         <div className="grid gap-4">
           <div className={`${block} h-24`} />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -126,7 +133,7 @@ function ScannerSkeleton() {
         </div>
         <div className={`${block} h-80`} />
       </div>
-      <p className="sr-only md:col-span-2">Loading live token data. This can take a few seconds.</p>
+      <p className="sr-only">Loading live token data. This can take a few seconds.</p>
     </div>
   );
 }
@@ -208,20 +215,24 @@ export default function Scanner() {
 
   if (!data) return <ScannerSkeleton />;
 
+  // Strip on top (market status, data source, tabs, search, token cards), then
+  // the report and Buy panel using the full width below it.
   return (
-    <div className="grid gap-6 md:grid-cols-[260px_1fr]">
+    <div className="grid gap-6">
       <div className="min-w-0">
-        <p className="mb-4 flex items-center gap-2 text-sm">
-          <span className={`size-2 rounded-full ${clock.isOpen ? "bg-emerald-500" : "bg-amber-500"}`} />
-          <span>
-            US market <strong>{clock.isOpen ? "open" : "closed"}</strong>
-            <span className="text-muted">
-              {" "}· {clock.isOpen ? "closes" : "opens"} in{" "}
-              <span className="tabular-nums">{formatCountdown(clock.msUntilChange)}</span>
+        <div className="md:mb-3 md:flex md:items-center md:justify-between md:gap-6">
+          <p className="mb-4 flex items-center gap-2 text-sm md:mb-0">
+            <span className={`size-2 rounded-full ${clock.isOpen ? "bg-emerald-500" : "bg-amber-500"}`} />
+            <span>
+              US market <strong>{clock.isOpen ? "open" : "closed"}</strong>
+              <span className="text-muted">
+                {" "}· {clock.isOpen ? "closes" : "opens"} in{" "}
+                <span className="tabular-nums">{formatCountdown(clock.msUntilChange)}</span>
+              </span>
             </span>
-          </span>
-        </p>
-        <DataSource data={data} refreshFailed={main.isRefetchError} />
+          </p>
+          <DataSource data={data} refreshFailed={main.isRefetchError} />
+        </div>
         <TokenPicker
           tokens={data.tokens}
           selectedId={selectedId}

@@ -57,7 +57,7 @@ components/
   Scanner.tsx           Fetches /api/tokens, holds the selected token
   TokenPicker.tsx       Markets / Watchlist tabs, search, token cards (24h change, + to watch)
   useWatchlist.ts       Watchlist saved in this browser (localStorage)
-  useAutoScroll.ts      Self-scrolling, looping token strip on phones
+  useAutoScroll.ts      Self-scrolling, looping token strip (all screen sizes)
   TokenReport.tsx       Verdict, stock, provider, checks, risks
   BuyPanel.tsx          Amount, balances, live quote + countdown, guards
   WalletButton.tsx      Connect / switch to BNB Chain / disconnect
@@ -140,7 +140,7 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 
 Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
 
-**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On phones the strip scrolls by itself in a loop, pausing on hover, touch, keyboard focus or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion.
+**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. The tokens sit in a full-width strip under the header, like a market ticker, on every screen size. It scrolls by itself in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion. The report and Buy panel use the full width below it.
 
 **Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
 

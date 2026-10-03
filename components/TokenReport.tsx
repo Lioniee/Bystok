@@ -25,7 +25,7 @@ export default function TokenReport({ token, analysis }: { token: TokenizedStock
   const { checks, verdict, risks } = analysis;
 
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
       <div className="grid min-w-0 gap-4">
         {/* Verdict */}
         <section className={`${card} flex flex-wrap items-center justify-between gap-3`}>
