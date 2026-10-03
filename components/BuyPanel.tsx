@@ -33,7 +33,7 @@ export default function BuyPanel({ token, analysis }: { token: TokenizedStock; a
   const poolShare = token.liquidityUsd ? (usdtIn / token.liquidityUsd) * 100 : 0;
 
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 lg:sticky lg:top-4">
+    <section className="rounded-2xl border border-line bg-card p-4 xl:sticky xl:top-4">
       <h3 className="font-bold">Buy {token.symbol}</h3>
 
       {bal && (

@@ -7,6 +7,8 @@ import { analyze } from "@/lib/analysis";
 import { formatCountdown, getMarketClock } from "@/lib/market-hours";
 import TokenPicker from "./TokenPicker";
 import TokenReport from "./TokenReport";
+import BuyPanel from "./BuyPanel";
+import MarketTicker from "./MarketTicker";
 import { useNow, useWallet, useWalletSpread } from "./buy-hooks";
 import { useWatchlist } from "./useWatchlist";
 
@@ -41,7 +43,7 @@ function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFail
   const now = useNow(true);
   if (data.source === "sample") {
     return (
-      <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs md:mb-0 md:max-w-xl">
+      <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs">
         <p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Sample data</p>
         <p className="mt-1">These are made-up numbers, not live prices. {data.notice}</p>
       </div>
@@ -53,7 +55,7 @@ function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFail
   const ageMin = Math.floor((now - updated.getTime()) / 60_000);
   const stale = refreshFailed || now - updated.getTime() > STALE_AFTER_MS;
   return (
-    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted md:mb-0">
+    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
       <span
         className={`rounded-full px-2 py-0.5 font-semibold ${
           stale
@@ -102,24 +104,24 @@ function ScannerSkeleton() {
   const block = "animate-pulse rounded-2xl bg-line/60";
   const bar = "animate-pulse rounded-xl bg-line/60";
   return (
-    <div className="grid gap-6" aria-busy="true" aria-label="Loading tokens">
-      <div className="grid gap-3">
-        <div className="flex justify-between gap-4">
-          <div className={`${bar} h-5 w-56`} />
-          <div className={`${bar} hidden h-5 w-64 md:block`} />
-        </div>
-        <div className="grid gap-3 md:flex">
-          <div className={`${bar} h-10 md:w-72`} />
-          <div className={`${bar} h-11 md:h-10 md:w-96`} />
-        </div>
-        <div className="flex gap-2 overflow-hidden">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className={`${bar} h-16 w-56 shrink-0`} />
-          ))}
-        </div>
+    <div className="grid grid-cols-1 gap-6" aria-busy="true" aria-label="Loading tokens">
+      <div className="hidden gap-2 overflow-hidden md:flex">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={`${bar} h-11 w-64 shrink-0`} />
+        ))}
       </div>
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
-        <div className="grid gap-4">
+      <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+        <div className="grid content-start gap-2 md:row-span-2 xl:row-span-1">
+          <div className={`${bar} h-5 w-48`} />
+          <div className={`${bar} h-10`} />
+          <div className={`${bar} h-11`} />
+          <div className="flex gap-2 overflow-hidden md:grid">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className={`${bar} h-16 w-56 shrink-0 md:w-full`} />
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 md:col-start-2">
           <div className={`${block} h-24`} />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className={`${block} h-36`} />
@@ -131,7 +133,7 @@ function ScannerSkeleton() {
             ))}
           </div>
         </div>
-        <div className={`${block} h-80`} />
+        <div className={`${block} h-80 md:col-start-2 xl:col-start-3 xl:row-start-1`} />
       </div>
       <p className="sr-only">Loading live token data. This can take a few seconds.</p>
     </div>
@@ -215,13 +217,15 @@ export default function Scanner() {
 
   if (!data) return <ScannerSkeleton />;
 
-  // Strip on top (market status, data source, tabs, search, token cards), then
-  // the report and Buy panel using the full width below it.
+  // Wide screens: "Most traded" ticker on top, then sidebar | report | Buy panel.
+  // Medium screens: the Buy panel moves under the report. Phones: one column
+  // (status, token strip, report, Buy panel) and no ticker.
   return (
-    <div className="grid gap-6">
-      <div className="min-w-0">
-        <div className="md:mb-3 md:flex md:items-center md:justify-between md:gap-6">
-          <p className="mb-4 flex items-center gap-2 text-sm md:mb-0">
+    <div className="grid grid-cols-1 gap-6">
+      <MarketTicker tokens={data.tokens} selectedId={selectedId} onSelect={setSelectedId} />
+      <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+        <div className="min-w-0 md:row-span-2 xl:row-span-1">
+          <p className="mb-4 flex items-center gap-2 text-sm">
             <span className={`size-2 rounded-full ${clock.isOpen ? "bg-emerald-500" : "bg-amber-500"}`} />
             <span>
               US market <strong>{clock.isOpen ? "open" : "closed"}</strong>
@@ -232,19 +236,29 @@ export default function Scanner() {
             </span>
           </p>
           <DataSource data={data} refreshFailed={main.isRefetchError} />
+          <TokenPicker
+            tokens={data.tokens}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onSearchAll={data.source === "live" ? searchAll : undefined}
+            watchlist={watchlist.ids}
+            watchlistPending={restoring}
+            onToggleWatch={watchlist.toggle}
+            clock={clock}
+          />
         </div>
-        <TokenPicker
-          tokens={data.tokens}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onSearchAll={data.source === "live" ? searchAll : undefined}
-          watchlist={watchlist.ids}
-          watchlistPending={restoring}
-          onToggleWatch={watchlist.toggle}
-          clock={clock}
-        />
+        {selected && analysis && (
+          <>
+            <div className="min-w-0 md:col-start-2">
+              <TokenReport token={selected} analysis={analysis} />
+            </div>
+            <div className="min-w-0 md:col-start-2 xl:col-start-3 xl:row-start-1">
+              {/* key resets the form whenever a different token is picked */}
+              <BuyPanel key={selected.id} token={selected} analysis={analysis} />
+            </div>
+          </>
+        )}
       </div>
-      {selected && analysis && <TokenReport token={selected} analysis={analysis} />}
     </div>
   );
 }
