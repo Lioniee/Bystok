@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TokenizedStock, TokensResponse } from "@/lib/types";
 import { analyze } from "@/lib/analysis";
 import { formatCountdown, getMarketClock } from "@/lib/market-hours";
 import TokenPicker from "./TokenPicker";
 import TokenReport from "./TokenReport";
-import { useWallet, useWalletSpread } from "./buy-hooks";
+import { useNow, useWallet, useWalletSpread } from "./buy-hooks";
+
+// The server caches Binance responses for 30s, so polling faster gains nothing.
+const REFRESH_MS = 30_000;
+// Past this age the "updated" time is shown as a warning.
+const STALE_AFTER_MS = 90_000;
 
 // Re-reads the US market clock every second so status and countdown stay live.
 function useMarketClock() {
@@ -18,14 +24,20 @@ function useMarketClock() {
   return clock;
 }
 
+// Module-level so React Query can keep the combined result stable between renders.
+function allSearchedTokens(results: { data?: TokensResponse }[]) {
+  return results.flatMap((r) => r.data?.tokens ?? []);
+}
+
 async function loadTokens(query?: string) {
-  const res = await fetch(query ? `/api/tokens?q=${encodeURIComponent(query)}` : "/api/tokens");
+  const res = await fetch(query ? `/api/tokens?q=${encodeURIComponent(query)}` : "/api/tokens", { cache: "no-store" });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return (await res.json()) as TokensResponse;
 }
 
 // Says plainly whether the numbers are real. Sample data gets a loud label.
-function DataSource({ data }: { data: TokensResponse }) {
+function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFailed: boolean }) {
+  const now = useNow(true);
   if (data.source === "sample") {
     return (
       <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs">
@@ -34,13 +46,31 @@ function DataSource({ data }: { data: TokensResponse }) {
       </div>
     );
   }
-  const time = new Date(data.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // Formatted in the browser, so it is in the viewer's own time zone (e.g. "2:01 PM WAT").
+  const updated = new Date(data.updatedAt);
+  const time = updated.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  const ageMin = Math.floor((now - updated.getTime()) / 60_000);
+  const stale = refreshFailed || now - updated.getTime() > STALE_AFTER_MS;
   return (
-    <p className="mb-4 flex items-center gap-2 text-xs text-muted">
-      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-400">
-        Live
+    <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+      <span
+        className={`rounded-full px-2 py-0.5 font-semibold ${
+          stale
+            ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+        }`}
+      >
+        {stale ? "Delayed" : "Live"}
       </span>
-      Binance Web3 API · updated {time}
+      <span>
+        Binance Web3 API · updated <time dateTime={data.updatedAt}>{time}</time>
+        {stale && (
+          <span className="text-amber-700 dark:text-amber-400">
+            {" "}
+            ({ageMin < 1 ? "under a minute" : `${ageMin} min`} ago{refreshFailed ? ", couldn’t refresh, retrying" : ""})
+          </span>
+        )}
+      </span>
     </p>
   );
 }
@@ -102,31 +132,45 @@ function ScannerSkeleton() {
 
 // Loads tokens from our own server route (/api/tokens), never from Binance
 // directly, so the API key stays on the server.
+// Data is refetched every 30 seconds while the tab is visible, and right away
+// when the viewer comes back to the tab, so a page left open never shows
+// hours-old prices.
 export default function Scanner() {
-  const [data, setData] = useState<TokensResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [searches, setSearches] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const clock = useMarketClock();
 
+  const refresh = { refetchInterval: REFRESH_MS, refetchOnWindowFocus: true, staleTime: REFRESH_MS } as const;
+  const main = useQuery({ queryKey: ["tokens"], queryFn: () => loadTokens(), ...refresh });
+  const searchedTokens = useQueries({
+    queries: searches.map((q) => ({ queryKey: ["tokens", q], queryFn: () => loadTokens(q), ...refresh })),
+    combine: allSearchedTokens,
+  });
+
+  // Default list first, then tokens found by searching, without duplicates.
+  const data = useMemo<TokensResponse | null>(() => {
+    if (!main.data) return null;
+    const known = new Set(main.data.tokens.map((t) => t.id));
+    const extra = searchedTokens.filter((t) => !known.has(t.id) && known.add(t.id));
+    return { ...main.data, tokens: [...main.data.tokens, ...extra] };
+  }, [main.data, searchedTokens]);
+
   useEffect(() => {
-    loadTokens()
-      .then((json) => {
-        setData(json);
-        setSelectedId(json.tokens[0]?.id ?? "");
-      })
-      .catch((err: Error) => setError(err.message));
-  }, []);
+    if (!selectedId && data?.tokens[0]) setSelectedId(data.tokens[0].id);
+  }, [data, selectedId]);
 
   // Searches every tokenized stock on the server and adds the matches to the list.
-  const searchAll = useCallback(async (query: string) => {
-    const found = await loadTokens(query);
-    setData((prev) => {
-      if (!prev) return found;
-      const known = new Set(prev.tokens.map((t) => t.id));
-      return { ...prev, tokens: [...prev.tokens, ...found.tokens.filter((t) => !known.has(t.id))] };
-    });
-    return found.tokens.length;
-  }, []);
+  const searchAll = useCallback(
+    async (query: string) => {
+      const found = await queryClient.fetchQuery({ queryKey: ["tokens", query], queryFn: () => loadTokens(query) });
+      setSearches((prev) => (prev.includes(query) ? prev : [...prev, query]));
+      return found.tokens.length;
+    },
+    [queryClient],
+  );
+
+  const error = main.error && !main.data ? main.error.message : null;
 
   const listed = data?.tokens.find((t) => t.id === selectedId);
   const selected = useWalletQuotedSpread(listed);
@@ -155,7 +199,7 @@ export default function Scanner() {
             </span>
           </span>
         </p>
-        <DataSource data={data} />
+        <DataSource data={data} refreshFailed={main.isRefetchError} />
         <TokenPicker
           tokens={data.tokens}
           selectedId={selectedId}

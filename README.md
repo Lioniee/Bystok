@@ -138,6 +138,8 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 
 Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
 
+**Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
+
 ### Wallet and buy flow (no transactions yet)
 
 - **Connect:** injected browser wallets only (Binance Web3 Wallet extension, MetaMask), via wagmi + viem on BNB Chain (chain 56). Wallets on another network are asked to switch. Bystok never sees a private key.
