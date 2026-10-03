@@ -105,7 +105,7 @@ function ScannerSkeleton() {
   const bar = "animate-pulse rounded-xl bg-line/60";
   return (
     <div className="grid grid-cols-1 gap-6" aria-busy="true" aria-label="Loading tokens">
-      <div className="hidden gap-2 overflow-hidden md:flex">
+      <div className="flex gap-2 overflow-hidden">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className={`${bar} h-11 w-64 shrink-0`} />
         ))}
@@ -115,11 +115,9 @@ function ScannerSkeleton() {
           <div className={`${bar} h-5 w-48`} />
           <div className={`${bar} h-10`} />
           <div className={`${bar} h-11`} />
-          <div className="flex gap-2 overflow-hidden md:grid">
-            {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className={`${bar} h-16 w-56 shrink-0 md:w-full`} />
-            ))}
-          </div>
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className={`${bar} h-16 ${i >= 4 ? "max-md:hidden" : ""}`} />
+          ))}
         </div>
         <div className="grid gap-4 md:col-start-2">
           <div className={`${block} h-24`} />
@@ -201,6 +199,21 @@ export default function Scanner() {
     }
   }, [live, data, watchlist.entries, searchAll]);
 
+  // Picking a token from the list or ticker. On phones the report is further
+  // down the page, so scroll to it (smoothly, unless reduced motion is on).
+  // The automatic first selection on load doesn't scroll.
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [scrollRequest, setScrollRequest] = useState(0);
+  const selectToken = useCallback((id: string) => {
+    setSelectedId(id);
+    setScrollRequest((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (scrollRequest === 0 || !window.matchMedia("(max-width: 767px)").matches) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    reportRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }, [scrollRequest]);
+
   const error = main.error && !main.data ? main.error.message : null;
 
   const listed = data?.tokens.find((t) => t.id === selectedId);
@@ -217,12 +230,12 @@ export default function Scanner() {
 
   if (!data) return <ScannerSkeleton />;
 
-  // Wide screens: "Most traded" ticker on top, then sidebar | report | Buy panel.
-  // Medium screens: the Buy panel moves under the report. Phones: one column
-  // (status, token strip, report, Buy panel) and no ticker.
+  // "Most traded" ticker on top at every size, then:
+  // wide screens: sidebar | report | Buy panel; medium: the Buy panel moves
+  // under the report; phones: one column (picker, report, Buy panel).
   return (
     <div className="grid grid-cols-1 gap-6">
-      <MarketTicker tokens={data.tokens} selectedId={selectedId} onSelect={setSelectedId} />
+      <MarketTicker tokens={data.tokens} selectedId={selectedId} onSelect={selectToken} />
       <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start xl:grid-cols-[260px_minmax(0,1fr)_320px]">
         <div className="min-w-0 md:row-span-2 xl:row-span-1">
           <p className="mb-4 flex items-center gap-2 text-sm">
@@ -239,7 +252,7 @@ export default function Scanner() {
           <TokenPicker
             tokens={data.tokens}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={selectToken}
             onSearchAll={data.source === "live" ? searchAll : undefined}
             watchlist={watchlist.ids}
             watchlistPending={restoring}
@@ -249,7 +262,7 @@ export default function Scanner() {
         </div>
         {selected && analysis && (
           <>
-            <div className="min-w-0 md:col-start-2">
+            <div ref={reportRef} className="min-w-0 scroll-mt-4 md:col-start-2">
               <TokenReport token={selected} analysis={analysis} />
             </div>
             <div className="min-w-0 md:col-start-2 xl:col-start-3 xl:row-start-1">

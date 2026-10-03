@@ -1,15 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { TokenizedStock } from "@/lib/types";
 import { analyze } from "@/lib/analysis";
 import { usd } from "@/lib/format";
 import type { MarketClock } from "@/lib/market-hours";
 import { LEVEL_STYLES } from "./LevelBadge";
 import PriceChange from "./PriceChange";
-import { useAutoScroll, useMediaQuery } from "./useAutoScroll";
 
 type Tab = "markets" | "watchlist";
+
+// On phones the list starts collapsed to this many cards.
+const PHONE_PREVIEW = 4;
 
 type Props = {
   tokens: TokenizedStock[];
@@ -22,14 +24,16 @@ type Props = {
   clock: MarketClock;
 };
 
-// Tabs, search and the token list. On phones the list is a sideways strip
-// that scrolls by itself; on desktop it stacks as a list.
+// Tabs, search and a vertical list of token cards. On phones the list shows
+// the first few cards with a "Show all stocks" toggle; on desktop (the sidebar)
+// it always shows everything.
 export default function TokenPicker(props: Props) {
   const { tokens, selectedId, onSelect, onSearchAll, watchlist, watchlistPending, onToggleWatch, clock } = props;
   const [tab, setTab] = useState<Tab>("markets");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchNote, setSearchNote] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   async function searchAll() {
     if (!onSearchAll) return;
@@ -51,38 +55,22 @@ export default function TokenPicker(props: Props) {
     [t.symbol, t.underlying.ticker, t.underlying.name].some((s) => s.toLowerCase().includes(q)),
   );
 
-  // Auto-scroll only on the phone strip, only with motion allowed, and not
-  // while the viewer is searching.
-  const listRef = useRef<HTMLUListElement>(null);
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const loopWanted = !isDesktop && !reducedMotion && !q;
-  const overflowing = useAutoScroll(listRef, loopWanted, `${tab}:${filtered.map((t) => t.id).join(",")}`);
-  const looping = loopWanted && overflowing && filtered.length > 0;
+  // Collapsing is done with CSS (max-md:hidden) so desktop never flickers; a
+  // search always shows every match.
+  const collapsible = !q && filtered.length > PHONE_PREVIEW;
 
-  // `copy`: part of the duplicate used for the seamless loop. `loopStart`: its
-  // first item, used to measure the width of one copy.
-  const card = (t: TokenizedStock, copy: boolean, loopStart = false) => {
+  const card = (t: TokenizedStock, index: number) => {
     const verdict = analyze(t, clock).verdict;
     const active = t.id === selectedId;
     const watched = watchlist.has(t.id);
     const change = t.change24hPct;
     return (
-      <li
-        key={copy ? `copy-${t.id}` : t.id}
-        className={`relative shrink-0 md:shrink ${looping ? "" : "snap-start"}`}
-        // The duplicate exists only to make the loop seamless: hidden from screen
-        // readers and skipped by Tab, but still tappable.
-        aria-hidden={copy || undefined}
-        data-loop-copy={copy || undefined}
-        data-loop-start={loopStart || undefined}
-      >
+      <li key={t.id} className={`relative ${collapsible && !expanded && index >= PHONE_PREVIEW ? "max-md:hidden" : ""}`}>
         <button
           type="button"
           onClick={() => onSelect(t.id)}
           aria-pressed={active}
-          tabIndex={copy ? -1 : undefined}
-          className={`flex w-56 items-center justify-between gap-3 rounded-xl border py-2.5 pl-3 pr-12 text-left transition md:w-full ${
+          className={`flex w-full items-center justify-between gap-3 rounded-xl border py-2.5 pl-3 pr-12 text-left transition ${
             active ? "border-brand bg-brand/10" : "border-line bg-card hover:border-muted"
           }`}
         >
@@ -107,7 +95,6 @@ export default function TokenPicker(props: Props) {
           aria-pressed={watched}
           aria-label={watched ? `Remove ${t.symbol} from watchlist` : `Add ${t.symbol} to watchlist`}
           title={watched ? "Remove from watchlist" : "Add to watchlist"}
-          tabIndex={copy ? -1 : undefined}
           className={`absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full border text-sm font-bold transition ${
             watched
               ? "border-brand bg-brand text-brand-fg"
@@ -159,17 +146,8 @@ export default function TokenPicker(props: Props) {
         className="mb-3 w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
       />
 
-      <ul
-        ref={listRef}
-        id="token-list"
-        role="tabpanel"
-        aria-labelledby={`tab-${tab}`}
-        className={`no-scrollbar relative -mx-4 flex gap-2 overflow-x-auto px-4 pb-2 md:mx-0 md:flex-col md:overflow-visible md:px-0 ${
-          looping ? "" : "snap-x"
-        }`}
-      >
-        {filtered.map((t) => card(t, false))}
-        {looping && filtered.map((t, i) => card(t, true, i === 0))}
+      <ul id="token-list" role="tabpanel" aria-labelledby={`tab-${tab}`} className="flex flex-col gap-2">
+        {filtered.map((t, i) => card(t, i))}
 
         {filtered.length === 0 && (
           <li className="px-1 py-2 text-sm text-muted">
@@ -199,6 +177,18 @@ export default function TokenPicker(props: Props) {
           </li>
         )}
       </ul>
+
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-controls="token-list"
+          className="mt-2 w-full rounded-xl border border-line bg-card py-2.5 text-sm font-semibold hover:border-muted md:hidden"
+        >
+          {expanded ? "Show less" : `Show all stocks (${filtered.length})`}
+        </button>
+      )}
     </section>
   );
 }

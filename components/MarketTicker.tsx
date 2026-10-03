@@ -14,10 +14,10 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
-// "Most traded (24h)" ticker for wider screens: the loaded tokens ranked by
-// on-chain 24h trading volume (already in the token data, so no extra API
-// calls). It loops slowly, like a market ticker, with the same pause rules as
-// the phone strip.
+// "Most traded (24h)" ticker at the top of the page: the loaded tokens ranked
+// by on-chain 24h trading volume (already in the token data, so no extra API
+// calls). It loops slowly, like a market ticker, pausing on hover, touch,
+// wheel, swipe and keyboard focus (see useAutoScroll).
 export default function MarketTicker({ tokens, selectedId, onSelect }: Props) {
   const top = [...tokens]
     .filter((t) => t.volume24hUsd > 0)
@@ -25,9 +25,8 @@ export default function MarketTicker({ tokens, selectedId, onSelect }: Props) {
     .slice(0, TOP_N);
 
   const listRef = useRef<HTMLUListElement>(null);
-  const isDesktop = useMediaQuery("(min-width: 768px)");
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const loopWanted = isDesktop && !reducedMotion;
+  const loopWanted = !reducedMotion;
   const overflowing = useAutoScroll(listRef, loopWanted, top.map((t) => t.id).join(","));
   const looping = loopWanted && overflowing;
 
@@ -63,14 +62,18 @@ export default function MarketTicker({ tokens, selectedId, onSelect }: Props) {
   };
 
   return (
-    <section aria-label="Most traded tokens in the last 24 hours" className="hidden min-w-0 items-center gap-3 md:flex">
-      <p className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted">
+    <section
+      aria-label="Most traded tokens in the last 24 hours"
+      className="flex min-w-0 flex-col gap-1 md:flex-row md:items-center md:gap-3"
+    >
+      <p className="text-xs font-bold uppercase tracking-wide text-muted md:shrink-0">
         Most traded
-        <span className="block font-medium normal-case tracking-normal">24h volume</span>
+        <span className="ml-1.5 font-medium normal-case tracking-normal md:ml-0 md:block">24h volume</span>
       </p>
       <ul
         ref={listRef}
-        className="no-scrollbar relative flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,black_32px,black_calc(100%-32px),transparent)]"
+        // Runs edge to edge on phones; both ends fade out, ticker-style.
+        className="no-scrollbar relative -mx-4 flex min-w-0 flex-1 gap-2 overflow-x-auto px-4 py-1 [mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)] sm:-mx-6 sm:px-6 md:mx-0 md:px-0"
       >
         {top.map((t, i) => item(t, i + 1, false))}
         {looping && top.map((t, i) => item(t, i + 1, true, i === 0))}

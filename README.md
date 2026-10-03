@@ -57,9 +57,9 @@ components/
   Scanner.tsx           Fetches /api/tokens, holds the selected token
   TokenPicker.tsx       Markets / Watchlist tabs, search, token cards (24h change, + to watch)
   useWatchlist.ts       Watchlist saved in this browser (localStorage)
-  MarketTicker.tsx      "Most traded (24h)" ticker on wider screens
+  MarketTicker.tsx      "Most traded (24h)" ticker at the top (all screen sizes)
   PriceChange.tsx       24h ▲/▼ change badge
-  useAutoScroll.ts      Self-scrolling, looping strips (phone token strip, desktop ticker)
+  useAutoScroll.ts      Self-scrolling, looping ticker
   TokenReport.tsx       Verdict, stock, provider, checks, risks
   BuyPanel.tsx          Amount, balances, live quote + countdown, guards
   WalletButton.tsx      Connect / switch to BNB Chain / disconnect
@@ -142,7 +142,7 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 
 Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
 
-**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On wide screens the layout is sidebar (tabs, search, token list) | report | Buy panel, with a **Most traded (24h)** ticker on top: the top 8 loaded tokens by on-chain 24h volume (from `price-info`, no extra calls). On medium screens the Buy panel moves under the report. On phones the token list is a sideways strip instead, and there's no ticker. The ticker and the phone strip scroll by themselves in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; they stay still if the device asks for reduced motion.
+**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On wide screens the layout is sidebar (tabs, search, token list) | report | Buy panel, with a **Most traded (24h)** ticker on top: the top 8 loaded tokens by on-chain 24h volume (from `price-info`, no extra calls). On medium screens the Buy panel moves under the report. On phones everything stacks in one column: ticker, picker (first 4 stocks with **Show all stocks**), report, Buy panel; picking a stock scrolls down to its report. The ticker scrolls by itself in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion. Nothing else on the page scrolls sideways.
 
 **Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
 
