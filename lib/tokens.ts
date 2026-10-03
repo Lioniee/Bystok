@@ -66,6 +66,8 @@ type PriceInfo = {
   buyVolume24H: string | null;
   sellVolume24H: string | null;
   holders: number | null;
+  priceChange24H: string | null; // already a percentage: "-0.59" means -0.59%
+
 };
 
 type Pool = { liquidityUsd: string | null };
@@ -166,6 +168,7 @@ async function enrich(
     liquidityUsd,
     volume24hUsd: (num(info?.buyVolume24H) ?? 0) + (num(info?.sellVolume24H) ?? 0),
     holders: info?.holders ?? undefined,
+    change24hPct: num(info?.priceChange24H),
     risks: COMMON_RISKS,
     warnings,
   };

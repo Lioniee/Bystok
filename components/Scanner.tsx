@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TokenizedStock, TokensResponse } from "@/lib/types";
 import { analyze } from "@/lib/analysis";
@@ -8,6 +8,7 @@ import { formatCountdown, getMarketClock } from "@/lib/market-hours";
 import TokenPicker from "./TokenPicker";
 import TokenReport from "./TokenReport";
 import { useNow, useWallet, useWalletSpread } from "./buy-hooks";
+import { useWatchlist } from "./useWatchlist";
 
 // The server caches Binance responses for 30s, so polling faster gains nothing.
 const REFRESH_MS = 30_000;
@@ -102,7 +103,7 @@ function ScannerSkeleton() {
   return (
     <div className="grid gap-6 md:grid-cols-[260px_1fr]" aria-busy="true" aria-label="Loading tokens">
       <div className="grid content-start gap-2">
-        <div className="h-5 w-40 animate-pulse rounded bg-line/60" />
+        <div className="h-10 animate-pulse rounded-xl bg-line/60" />
         <div className="h-11 animate-pulse rounded-xl bg-line/60" />
         <div className="flex gap-2 overflow-hidden md:grid">
           {Array.from({ length: 6 }, (_, i) => (
@@ -170,6 +171,27 @@ export default function Scanner() {
     [queryClient],
   );
 
+  // Saved tokens that aren't in the default list (found by searching earlier)
+  // are fetched again by ticker after a reload, once per ticker.
+  const watchlist = useWatchlist();
+  const restoreTried = useRef(new Set<string>());
+  const [restoring, setRestoring] = useState(0);
+  const live = data?.source === "live";
+  useEffect(() => {
+    if (!live || !data) return;
+    const have = new Set(data.tokens.map((t) => t.id));
+    const tickers = [
+      ...new Set(watchlist.entries.filter((e) => !have.has(e.id)).map((e) => e.ticker)),
+    ].filter((ticker) => !restoreTried.current.has(ticker));
+    for (const ticker of tickers) {
+      restoreTried.current.add(ticker);
+      setRestoring((n) => n + 1);
+      searchAll(ticker)
+        .catch(() => 0)
+        .finally(() => setRestoring((n) => n - 1));
+    }
+  }, [live, data, watchlist.entries, searchAll]);
+
   const error = main.error && !main.data ? main.error.message : null;
 
   const listed = data?.tokens.find((t) => t.id === selectedId);
@@ -205,6 +227,9 @@ export default function Scanner() {
           selectedId={selectedId}
           onSelect={setSelectedId}
           onSearchAll={data.source === "live" ? searchAll : undefined}
+          watchlist={watchlist.ids}
+          watchlistPending={restoring}
+          onToggleWatch={watchlist.toggle}
           clock={clock}
         />
       </div>

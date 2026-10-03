@@ -55,7 +55,9 @@ app/
   api/spread/route.ts   GET /api/spread?token=&wallet=: bid/ask quoted for a wallet
 components/
   Scanner.tsx           Fetches /api/tokens, holds the selected token
-  TokenPicker.tsx       Search + list of tokens
+  TokenPicker.tsx       Markets / Watchlist tabs, search, token cards (24h change, + to watch)
+  useWatchlist.ts       Watchlist saved in this browser (localStorage)
+  useAutoScroll.ts      Self-scrolling, looping token strip on phones
   TokenReport.tsx       Verdict, stock, provider, checks, risks
   BuyPanel.tsx          Amount, balances, live quote + countdown, guards
   WalletButton.tsx      Connect / switch to BNB Chain / disconnect
@@ -133,10 +135,12 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 | Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` |
 | Market cap | `GET /rwa/underlying-market` | |
 | Liquidity | `GET /market/token/top-liquidity` | Sum of pools that report `liquidityUsd`. Ondo tokens trade only via RFQ market makers, which report none, so liquidity shows **Unavailable** |
-| Volume, holders | `POST /market/price-info` | Volume is `buyVolume24H + sellVolume24H` (on-chain). `volume24H` is the real stock's volume, so it's not used |
+| Volume, holders, 24h change | `POST /market/price-info` | Volume is `buyVolume24H + sellVolume24H` (on-chain). `volume24H` is the real stock's volume, so it's not used |
 | Spread | `GET /aggregator/quote` | Buy $100 with USDT, then quote selling it back. Ondo needs a wallet to quote, so spread shows **Unavailable** |
 
 Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
+
+**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On phones the strip scrolls by itself in a loop, pausing on hover, touch, keyboard focus or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion.
 
 **Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
 

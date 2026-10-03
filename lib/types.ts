@@ -29,6 +29,7 @@ export type TokenizedStock = {
   liquidityUsd: number | null; // null when pools don't report USD liquidity (RFQ market makers)
   volume24hUsd: number; // on-chain token volume, not the real stock's volume
   holders?: number;
+  change24hPct?: number; // token price change over 24h, in percent (e.g. -0.59)
   risks: string[]; // token-specific risks from the provider/issuer
   warnings: string[]; // live notices, e.g. "issuer paused trading: weekend"
 };
