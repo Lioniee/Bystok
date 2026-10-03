@@ -118,7 +118,7 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 
 | Field | Endpoint | Notes |
 | --- | --- | --- |
-| Token list, status | `GET /api/v1/dex/market/rwa/tokens` | Default view shows TSLA, AAPL, SPY, MSFT, NVDA, COIN |
+| Token list, status | `GET /api/v1/dex/market/rwa/tokens` | Default view shows NVDA, TSLA, AAPL, SPY, MSFT, COIN (NVDAB selected first) |
 | Provider | `GET /rwa/platforms` + `/rwa/underlying-profile` | Attestation report link when the issuer publishes one |
 | Search | `GET /rwa/search` | Used when a search has no local match |
 | Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` |

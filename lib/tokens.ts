@@ -15,8 +15,9 @@ const USDT = "0x55d398326f99059ff775485246999027b3197955"; // BSC USDT, 18 decim
 const SAMPLE_QUOTE_USD = 100; // spread is measured on a $100 round trip
 const HOUR = 3_600_000;
 
-// Underlyings shown when nobody has searched yet.
-const DEFAULT_TICKERS = ["TSLA", "AAPL", "SPY", "MSFT", "NVDA", "COIN"];
+// Underlyings shown when nobody has searched yet. The first one is selected on load,
+// and NVDA leads because NVDAB has deep AMM liquidity, a live spread and a live price.
+const DEFAULT_TICKERS = ["NVDA", "TSLA", "AAPL", "SPY", "MSFT", "COIN"];
 
 const PROVIDER_NAMES: Record<string, string> = {
   ondo: "Ondo Global Markets",
@@ -212,7 +213,7 @@ async function enrich(
 async function pickTokens(all: RwaToken[], search?: string) {
   if (!search) {
     // bStock before Ondo for each ticker: bStock tokens have AMM pools and quote
-    // without a wallet, so the first token shown (TSLAB) has real liquidity and spread.
+    // without a wallet, so the first token shown (NVDAB) has real liquidity and spread.
     const platformRank = (t: RwaToken) => (t.platformId === "bstock" ? 0 : 1);
     return all
       .filter((t) => DEFAULT_TICKERS.includes(t.underlyingTicker))
