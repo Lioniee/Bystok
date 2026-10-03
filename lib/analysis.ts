@@ -16,7 +16,7 @@ export type Check = {
 };
 
 export type Analysis = {
-  spreadPct: number;
+  spreadPct: number | null; // null when no quote was possible
   deviationPct: number;
   checks: {
     liquidity: Check;
@@ -39,30 +39,46 @@ const THRESHOLDS = {
 
 // `clock` is the live US market clock (see market-hours.ts), shared by every token.
 export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
-  const mid = (t.bid + t.ask) / 2;
-  const spreadPct = ((t.ask - t.bid) / mid) * 100;
+  const spreadPct = t.bid !== null && t.ask !== null ? ((t.ask - t.bid) / ((t.bid + t.ask) / 2)) * 100 : null;
   const deviationPct = ((t.tokenPrice - t.underlying.price) / t.underlying.price) * 100;
   const absDev = Math.abs(deviationPct);
 
-  const liquidity: Check = {
-    label: "Liquidity",
-    value: compactUsd(t.liquidityUsd),
-    level:
-      t.liquidityUsd >= THRESHOLDS.liquidityGood
-        ? "good"
-        : t.liquidityUsd >= THRESHOLDS.liquidityOk
-          ? "caution"
-          : "bad",
-    hint: "How much money is in the pool. More liquidity means your order moves the price less.",
-  };
+  // Missing data is a "caution", not a pass: we can't vouch for what we can't measure.
+  const liquidity: Check =
+    t.liquidityUsd === null
+      ? {
+          label: "Liquidity",
+          value: "Unavailable",
+          level: "caution",
+          hint: "This token is sold by market makers that don't publish pool sizes, so we can't measure it.",
+        }
+      : {
+          label: "Liquidity",
+          value: compactUsd(t.liquidityUsd),
+          level:
+            t.liquidityUsd >= THRESHOLDS.liquidityGood
+              ? "good"
+              : t.liquidityUsd >= THRESHOLDS.liquidityOk
+                ? "caution"
+                : "bad",
+          hint: "How much money is in the pool. More liquidity means your order moves the price less.",
+        };
 
-  const spread: Check = {
-    label: "Spread",
-    value: pct(spreadPct),
-    level:
-      spreadPct <= THRESHOLDS.spreadGood ? "good" : spreadPct <= THRESHOLDS.spreadOk ? "caution" : "bad",
-    hint: "Gap between the buy and sell price. It is a hidden cost you pay on every round trip.",
-  };
+  const spread: Check =
+    spreadPct === null
+      ? {
+          label: "Spread",
+          value: "Unavailable",
+          level: "caution",
+          hint: "No price quote is available without a connected wallet, so the buy/sell gap is unknown.",
+        }
+      : {
+          label: "Spread",
+          value: pct(spreadPct),
+          level:
+            spreadPct <= THRESHOLDS.spreadGood ? "good" : spreadPct <= THRESHOLDS.spreadOk ? "caution" : "bad",
+          hint: "Gap between the buy and sell price on a $100 round trip. It is a hidden cost you pay every time.",
+        };
 
   const deviation: Check = {
     label: "Price deviation",
@@ -94,9 +110,9 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
 
   // Risks generated from the numbers come first, then the issuer's own list.
   const risks: string[] = [];
-  if (liquidity.level !== "good")
+  if (t.liquidityUsd !== null && liquidity.level !== "good")
     risks.push(`Liquidity is only ${liquidity.value}. Large orders may move the price against you.`);
-  if (spread.level !== "good")
+  if (spreadPct !== null && spread.level !== "good")
     risks.push(`The spread is ${spread.value}. Buying then selling right away would lose about that much.`);
   if (deviation.level !== "good")
     risks.push(
@@ -106,7 +122,7 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
     );
   if (market.level !== "good")
     risks.push("The US stock market is closed. Prices can jump when trading resumes.");
-  risks.push(...t.risks);
+  risks.push(...t.warnings, ...t.risks);
 
   return { spreadPct, deviationPct, checks, verdict, risks };
 }

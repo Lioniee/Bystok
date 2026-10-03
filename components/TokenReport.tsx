@@ -53,8 +53,20 @@ export default function TokenReport({ token, analysis }: { token: TokenizedStock
               <dd className="text-right tabular-nums">{usd(token.underlying.price)}</dd>
               <dt className="text-muted">Token price</dt>
               <dd className="text-right tabular-nums">{usd(token.tokenPrice)}</dd>
-              <dt className="text-muted">24h volume</dt>
+              <dt className="text-muted">Token 24h volume</dt>
               <dd className="text-right tabular-nums">{compactUsd(token.volume24hUsd)}</dd>
+              {token.holders !== undefined && (
+                <>
+                  <dt className="text-muted">Token holders</dt>
+                  <dd className="text-right tabular-nums">{token.holders.toLocaleString("en-US")}</dd>
+                </>
+              )}
+              {token.underlying.marketCapUsd !== undefined && (
+                <>
+                  <dt className="text-muted">Company value</dt>
+                  <dd className="text-right tabular-nums">{compactUsd(token.underlying.marketCapUsd)}</dd>
+                </>
+              )}
             </dl>
           </section>
           <section className={card}>
@@ -64,6 +76,16 @@ export default function TokenReport({ token, analysis }: { token: TokenizedStock
               <span className="text-muted">Backing: </span>
               {token.provider.backing}
             </p>
+            {token.provider.attestationUrl && (
+              <a
+                href={token.provider.attestationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block text-sm font-medium underline decoration-brand decoration-2 underline-offset-2"
+              >
+                Latest attestation report
+              </a>
+            )}
           </section>
         </div>
 

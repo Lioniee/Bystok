@@ -11,12 +11,30 @@ type Props = {
   tokens: TokenizedStock[];
   selectedId: string;
   onSelect: (id: string) => void;
+  onSearchAll?: (query: string) => Promise<number>; // server-side search across every token
   clock: MarketClock;
 };
 
 // Search + list of tokens. Scrolls sideways on phones, stacks as a list on desktop.
-export default function TokenPicker({ tokens, selectedId, onSelect, clock }: Props) {
+export default function TokenPicker({ tokens, selectedId, onSelect, onSearchAll, clock }: Props) {
   const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
+
+  async function searchAll() {
+    if (!onSearchAll) return;
+    setSearching(true);
+    setSearchNote(null);
+    try {
+      const n = await onSearchAll(query.trim());
+      if (n === 0) setSearchNote(`No tokenized stocks on BNB Chain match “${query}”.`);
+    } catch {
+      setSearchNote("Search failed. Try again in a moment.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
   const q = query.trim().toLowerCase();
   const filtered = tokens.filter((t) =>
     [t.symbol, t.underlying.ticker, t.underlying.name].some((s) => s.toLowerCase().includes(q)),
@@ -31,7 +49,10 @@ export default function TokenPicker({ tokens, selectedId, onSelect, clock }: Pro
         id="token-search"
         type="search"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setSearchNote(null);
+        }}
         placeholder="Search TSLA, Apple, SPY…"
         className="mb-3 w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
       />
@@ -65,7 +86,22 @@ export default function TokenPicker({ tokens, selectedId, onSelect, clock }: Pro
             </li>
           );
         })}
-        {filtered.length === 0 && <li className="px-1 py-2 text-sm text-muted">No tokens match “{query}”.</li>}
+        {filtered.length === 0 && (
+          <li className="px-1 py-2 text-sm text-muted">
+            {onSearchAll && !searchNote ? (
+              <button
+                type="button"
+                onClick={searchAll}
+                disabled={searching}
+                className="rounded-lg border border-line px-3 py-1.5 text-fg hover:border-muted disabled:opacity-50"
+              >
+                {searching ? "Searching…" : `Search all tokens for “${query.trim()}”`}
+              </button>
+            ) : (
+              (searchNote ?? `No tokens match “${query}”.`)
+            )}
+          </li>
+        )}
       </ul>
     </section>
   );

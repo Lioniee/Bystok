@@ -4,7 +4,7 @@ import type { TokenizedStock } from "./types";
 // These are not live prices and not real on-chain figures.
 // They are deliberately varied so every warning state shows up somewhere.
 
-const COMMON_RISKS = [
+export const COMMON_RISKS = [
   "You hold a token that tracks the share, not the share itself — usually no voting rights.",
   "Depends on the issuer and its custodian actually holding the underlying shares.",
   "Tokenized stocks are restricted in some countries (often including the US). Check your eligibility.",
@@ -23,6 +23,7 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 1_850_000,
     volume24hUsd: 3_200_000,
     risks: [...COMMON_RISKS, "TSLA is a highly volatile stock — big daily swings are normal."],
+    warnings: [],
   },
   {
     id: "aaplon",
@@ -36,6 +37,7 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 2_400_000,
     volume24hUsd: 4_100_000,
     risks: COMMON_RISKS,
+    warnings: [],
   },
   {
     id: "spyon",
@@ -49,6 +51,7 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 5_100_000,
     volume24hUsd: 7_800_000,
     risks: [...COMMON_RISKS, "An ETF tracks 500 companies, so it is usually less volatile than one stock."],
+    warnings: [],
   },
   {
     id: "msfton",
@@ -62,6 +65,7 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 380_000,
     volume24hUsd: 420_000,
     risks: COMMON_RISKS,
+    warnings: [],
   },
   {
     id: "nvdax",
@@ -75,6 +79,7 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 640_000,
     volume24hUsd: 910_000,
     risks: COMMON_RISKS,
+    warnings: [],
   },
   {
     id: "coinx",
@@ -88,5 +93,6 @@ export const sampleTokens: TokenizedStock[] = [
     liquidityUsd: 120_000,
     volume24hUsd: 85_000,
     risks: [...COMMON_RISKS, "COIN moves closely with crypto prices, which adds extra volatility."],
+    warnings: [],
   },
 ];

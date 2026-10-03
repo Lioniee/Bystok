@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TokensResponse } from "@/lib/types";
 import { analyze } from "@/lib/analysis";
 import { formatCountdown, getMarketClock } from "@/lib/market-hours";
@@ -17,6 +17,33 @@ function useMarketClock() {
   return clock;
 }
 
+async function loadTokens(query?: string) {
+  const res = await fetch(query ? `/api/tokens?q=${encodeURIComponent(query)}` : "/api/tokens");
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return (await res.json()) as TokensResponse;
+}
+
+// Says plainly whether the numbers are real. Sample data gets a loud label.
+function DataSource({ data }: { data: TokensResponse }) {
+  if (data.source === "sample") {
+    return (
+      <div role="status" className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-xs">
+        <p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Sample data</p>
+        <p className="mt-1">These are made-up numbers, not live prices. {data.notice}</p>
+      </div>
+    );
+  }
+  const time = new Date(data.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    <p className="mb-4 flex items-center gap-2 text-xs text-muted">
+      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-400">
+        Live
+      </span>
+      Binance Web3 API · updated {time}
+    </p>
+  );
+}
+
 // Loads tokens from our own server route (/api/tokens), never from Binance
 // directly, so the API key stays on the server.
 export default function Scanner() {
@@ -26,16 +53,23 @@ export default function Scanner() {
   const clock = useMarketClock();
 
   useEffect(() => {
-    fetch("/api/tokens")
-      .then((res) => {
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        return res.json() as Promise<TokensResponse>;
-      })
+    loadTokens()
       .then((json) => {
         setData(json);
         setSelectedId(json.tokens[0]?.id ?? "");
       })
       .catch((err: Error) => setError(err.message));
+  }, []);
+
+  // Searches every tokenized stock on the server and adds the matches to the list.
+  const searchAll = useCallback(async (query: string) => {
+    const found = await loadTokens(query);
+    setData((prev) => {
+      if (!prev) return found;
+      const known = new Set(prev.tokens.map((t) => t.id));
+      return { ...prev, tokens: [...prev.tokens, ...found.tokens.filter((t) => !known.has(t.id))] };
+    });
+    return found.tokens.length;
   }, []);
 
   const selected = data?.tokens.find((t) => t.id === selectedId);
@@ -66,10 +100,14 @@ export default function Scanner() {
             </span>
           </span>
         </p>
-        <TokenPicker tokens={data.tokens} selectedId={selectedId} onSelect={setSelectedId} clock={clock} />
-        {data.source === "sample" && (
-          <p className="mt-2 text-xs text-muted">Showing sample data. Live Binance Web3 data coming soon.</p>
-        )}
+        <DataSource data={data} />
+        <TokenPicker
+          tokens={data.tokens}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onSearchAll={data.source === "live" ? searchAll : undefined}
+          clock={clock}
+        />
       </div>
       {selected && analysis && <TokenReport token={selected} analysis={analysis} />}
     </div>

@@ -13,7 +13,7 @@ Pick a tokenized stock (for example `TSLAx`) and see, on one screen:
 
 Then buy from the same screen.
 
-> Right now the app uses **sample data** and the Buy button is a **demo** (no transaction is sent).
+> Token data is **live** from the Binance Web3 API when a key is configured, and falls back to clearly labelled **sample data** otherwise. The Buy button is still a **demo** (no transaction is sent).
 
 ---
 
@@ -74,9 +74,13 @@ Browser (Scanner.tsx)
 app/api/tokens/route.ts      ← runs on the server
    │  getTokens()
    ▼
-lib/tokens.ts                ← reads BINANCE_WEB3_API_KEY (server only)
-   │  today: returns sample-data.ts
-   ▼  later: calls the Binance Web3 API
+lib/tokens.ts                ← picks tokens, maps API data into TokenizedStock
+   │                              falls back to sample-data.ts if the API fails
+   ▼
+lib/binance-web3.ts          ← signs requests (server only), 30s cache, rate limiting
+   │
+   ▼
+https://web3.binance.com/build
 ```
 
 The browser never sees the API key. It only talks to our own `/api/tokens` route.
@@ -97,18 +101,33 @@ The overall verdict is **High risk** if any check is Risky, **Proceed with care*
 
 ---
 
-## Connecting the Binance Web3 API (next step)
+## Binance Web3 API
 
-1. Copy `.env.example` to `.env.local` and paste your key:
+1. Copy `.env.example` to `.env.local` and paste your key and secret:
    ```
    BINANCE_WEB3_API_KEY=your_key_here
+   BINANCE_WEB3_API_SECRET=your_secret_here
    ```
-   `.env.local` is git-ignored. Don't prefix the variable with `NEXT_PUBLIC_`, because that would expose it to the browser.
-2. In `lib/tokens.ts`, replace the `TODO` with a `fetch` to the Binance Web3 API, and map each result into the `TokenizedStock` shape from `lib/types.ts`. Return `source: "live"`.
-3. Restart `npm run dev` (env files are only read at startup).
+   `.env.local` is git-ignored. Don't prefix the variables with `NEXT_PUBLIC_`, because that would expose them to the browser.
+2. Restart `npm run dev` (env files are only read at startup).
 
-No UI changes are needed. Everything downstream already works from `TokenizedStock`.
-When deploying (e.g. Vercel), add the same variable in the host's environment settings.
+When deploying (e.g. Vercel), add the same variables in the host's environment settings.
+The server clock must be accurate: requests with a timestamp even 30 seconds off are rejected (error 40103).
+
+### Where each number comes from (BNB Chain only)
+
+| Field | Endpoint | Notes |
+| --- | --- | --- |
+| Token list, status | `GET /api/v1/dex/market/rwa/tokens` | Default view shows TSLA, AAPL, SPY, MSFT, NVDA, COIN |
+| Provider | `GET /rwa/platforms` + `/rwa/underlying-profile` | Attestation report link when the issuer publishes one |
+| Search | `GET /rwa/search` | Used when a search has no local match |
+| Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` |
+| Market cap | `GET /rwa/underlying-market` | |
+| Liquidity | `GET /market/token/top-liquidity` | Sum of pools that report `liquidityUsd`. Ondo tokens trade only via RFQ market makers, which report none, so liquidity shows **Unavailable** |
+| Volume, holders | `POST /market/price-info` | Volume is `buyVolume24H + sellVolume24H` (on-chain). `volume24H` is the real stock's volume, so it's not used |
+| Spread | `GET /aggregator/quote` | Buy $100 with USDT, then quote selling it back. Ondo needs a wallet to quote, so spread shows **Unavailable** |
+
+Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
 
 ---
 

@@ -15,10 +15,13 @@ export default function BuyPanel({ token, analysis }: { token: TokenizedStock; a
   const [submitted, setSubmitted] = useState(false);
 
   const usdIn = Math.max(0, Number(amount) || 0);
-  const tokensOut = usdIn / token.ask; // you buy at the ask price
-  const mid = (token.bid + token.ask) / 2;
-  const spreadCost = usdIn * ((token.ask - mid) / token.ask); // what you pay above the mid price
-  const poolShare = (usdIn / token.liquidityUsd) * 100;
+  // You buy at the ask. Without a live quote (RFQ tokens) we can only estimate from the last price.
+  const hasQuote = token.bid !== null && token.ask !== null;
+  const buyPrice = token.ask ?? token.tokenPrice;
+  const tokensOut = usdIn / buyPrice;
+  const mid = hasQuote ? (token.bid! + token.ask!) / 2 : buyPrice;
+  const spreadCost = usdIn * ((buyPrice - mid) / buyPrice); // what you pay above the mid price
+  const poolShare = token.liquidityUsd ? (usdIn / token.liquidityUsd) * 100 : 0;
   const canBuy = usdIn > 0 && reviewed;
 
   return (
@@ -55,14 +58,14 @@ export default function BuyPanel({ token, analysis }: { token: TokenizedStock; a
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-y-1.5 text-sm">
-        <dt className="text-muted">Price (ask)</dt>
-        <dd className="text-right tabular-nums">{usd(token.ask)}</dd>
+        <dt className="text-muted">{hasQuote ? "Price (ask)" : "Last price"}</dt>
+        <dd className="text-right tabular-nums">{usd(buyPrice)}</dd>
         <dt className="text-muted">You receive ≈</dt>
         <dd className="text-right font-semibold tabular-nums">
           {tokensOut.toFixed(4)} {token.symbol}
         </dd>
         <dt className="text-muted">Spread cost ≈</dt>
-        <dd className="text-right tabular-nums">{usd(spreadCost)}</dd>
+        <dd className="text-right tabular-nums">{hasQuote ? usd(spreadCost) : "Unknown"}</dd>
         <dt className="text-muted">Price vs stock</dt>
         <dd className="text-right tabular-nums">{pct(analysis.deviationPct, true)}</dd>
       </dl>
