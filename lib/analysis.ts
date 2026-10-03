@@ -80,13 +80,25 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
           hint: "Gap between the buy and sell price on a $100 round trip. It is a hidden cost you pay every time.",
         };
 
-  const deviation: Check = {
-    label: "Price deviation",
-    value: pct(deviationPct, true),
-    level:
-      absDev <= THRESHOLDS.deviationGood ? "good" : absDev <= THRESHOLDS.deviationOk ? "caution" : "bad",
-    hint: "How far the token price is from the real stock price. Close to 0% is what you want.",
-  };
+  // An exact match is suspicious rather than reassuring: the issuer may simply be
+  // reporting the last reference price instead of a live token price.
+  const pegged = t.tokenPrice === t.underlying.price;
+  const deviation: Check = pegged
+    ? {
+        label: "Price deviation",
+        value: pct(deviationPct, true),
+        level: "caution",
+        hint:
+          "Token price matches the last reference price exactly; it may be pegged rather than live." +
+          (clock.isOpen ? "" : " The market is closed, so neither price may be updating."),
+      }
+    : {
+        label: "Price deviation",
+        value: pct(deviationPct, true),
+        level:
+          absDev <= THRESHOLDS.deviationGood ? "good" : absDev <= THRESHOLDS.deviationOk ? "caution" : "bad",
+        hint: "How far the token price is from the real stock price. Close to 0% is what you want.",
+      };
 
   const countdown = formatCountdown(clock.msUntilChange);
   const market: Check = {
@@ -114,7 +126,11 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
     risks.push(`Liquidity is only ${liquidity.value}. Large orders may move the price against you.`);
   if (spreadPct !== null && spread.level !== "good")
     risks.push(`The spread is ${spread.value}. Buying then selling right away would lose about that much.`);
-  if (deviation.level !== "good")
+  if (pegged)
+    risks.push(
+      "The token price matches the last reference price exactly, so it may be pegged rather than live. The price you actually get could differ.",
+    );
+  else if (deviation.level !== "good")
     risks.push(
       deviationPct > 0
         ? `The token costs ${pct(absDev)} more than the real stock. You'd be paying a premium.`

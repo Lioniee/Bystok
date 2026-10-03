@@ -211,9 +211,16 @@ async function enrich(
 
 async function pickTokens(all: RwaToken[], search?: string) {
   if (!search) {
+    // bStock before Ondo for each ticker: bStock tokens have AMM pools and quote
+    // without a wallet, so the first token shown (TSLAB) has real liquidity and spread.
+    const platformRank = (t: RwaToken) => (t.platformId === "bstock" ? 0 : 1);
     return all
       .filter((t) => DEFAULT_TICKERS.includes(t.underlyingTicker))
-      .sort((a, b) => DEFAULT_TICKERS.indexOf(a.underlyingTicker) - DEFAULT_TICKERS.indexOf(b.underlyingTicker));
+      .sort(
+        (a, b) =>
+          DEFAULT_TICKERS.indexOf(a.underlyingTicker) - DEFAULT_TICKERS.indexOf(b.underlyingTicker) ||
+          platformRank(a) - platformRank(b),
+      );
   }
   // No matches comes back as error 40382 rather than an empty list.
   const results = await web3Request<RwaSearchResult[]>("GET", "/api/v1/dex/market/rwa/search", {
