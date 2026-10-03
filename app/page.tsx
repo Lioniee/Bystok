@@ -1,4 +1,5 @@
 import Scanner from "@/components/Scanner";
+import WalletButton from "@/components/WalletButton";
 
 export default function Home() {
   return (
@@ -13,9 +14,12 @@ export default function Home() {
             <p className="text-sm text-muted">Know it, then buy it.</p>
           </div>
         </div>
-        <span className="rounded-full border border-line bg-card px-3 py-1 text-xs font-medium text-muted">
-          BNB Chain
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="hidden rounded-full border border-line bg-card px-3 py-1 text-xs font-medium text-muted sm:inline">
+            BNB Chain
+          </span>
+          <WalletButton />
+        </div>
       </header>
 
       <main className="flex-1 pb-10">

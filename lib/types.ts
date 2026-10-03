@@ -39,3 +39,29 @@ export type TokensResponse = {
   updatedAt: string;
   notice?: string; // why we fell back to sample data, in plain words
 };
+
+// --- Buy flow ----------------------------------------------------------------
+
+export type Balances = {
+  usdt: number;
+  bnb: number;
+  bnbPriceUsd: number | null;
+};
+
+// A live quote for buying a token with USDT. Valid for 30 seconds.
+export type QuoteSummary = {
+  quoteId: string;
+  executionMode: string; // "SWAP" or "RFQ", as reported by the API
+  route: string[]; // venues, e.g. ["PancakeSwap V3"] or ["Rfq Halfmoon"]
+  usdtIn: number;
+  tokensOut: number;
+  pricePerToken: number; // USDT paid per token, all-in
+  marketPrice: number; // the API's own unit price for the token
+  priceImpactPct: number; // how much worse pricePerToken is than marketPrice
+  tradeFeeUsd: number | null; // the API's `tradeFee`
+  fetchedAt: number; // ms since epoch
+  expiresAt: number;
+};
+
+// Every API route in the buy flow answers with one of these.
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; marketClosed?: boolean };

@@ -13,7 +13,7 @@ Pick a tokenized stock (for example `TSLAx`) and see, on one screen:
 
 Then buy from the same screen.
 
-> Token data is **live** from the Binance Web3 API when a key is configured, and falls back to clearly labelled **sample data** otherwise. The Buy button is still a **demo** (no transaction is sent).
+> Token data is **live** from the Binance Web3 API when a key is configured, and falls back to clearly labelled **sample data** otherwise. Connect a browser wallet to see your balances and a live quote. The swap itself isn't built yet, so **no transaction is ever sent**.
 
 ---
 
@@ -49,18 +49,27 @@ app/
   layout.tsx            Page shell: <html>, title, mobile viewport
   page.tsx              Home page: header, scanner, footer
   globals.css           Tailwind + color tokens (light & dark mode)
-  api/tokens/route.ts   GET /api/tokens: server-only API route
+  api/tokens/route.ts   GET /api/tokens: scanner data (server only)
+  api/balances/route.ts GET /api/balances?address=: USDT + BNB balances
+  api/quote/route.ts    GET /api/quote?token=&amount=&wallet=: live buy quote
+  api/spread/route.ts   GET /api/spread?token=&wallet=: bid/ask quoted for a wallet
 components/
   Scanner.tsx           Fetches /api/tokens, holds the selected token
   TokenPicker.tsx       Search + list of tokens
   TokenReport.tsx       Verdict, stock, provider, checks, risks
-  BuyPanel.tsx          Amount, estimate, "I've read the risks", buy
+  BuyPanel.tsx          Amount, balances, live quote + countdown, guards
+  WalletButton.tsx      Connect / switch to BNB Chain / disconnect
+  Providers.tsx         wagmi + React Query context
+  buy-hooks.ts          Client hooks: wallet, balances, live quote, wallet spread
   LevelBadge.tsx        Good / Caution / Risky pill
 lib/
   types.ts              The TokenizedStock data shape
   sample-data.ts        Made-up tokens used until the real API is wired in
   analysis.ts           The scanner logic: thresholds -> checks -> verdict + risks
-  tokens.ts             getTokens(): the ONE place data is loaded (server-only)
+  tokens.ts             getTokens(): the ONE place scanner data is loaded (server-only)
+  trade.ts              Quotes, spread and wallet balances (server-only)
+  binance-web3.ts       Signed API client: HMAC signing, cache, rate limiting (server-only)
+  wagmi.ts              Wallet config: BNB Chain, injected wallets
   format.ts             $ and % formatting
   market-hours.ts       Live NYSE open/closed + countdown (New York time, DST-aware)
 ```
@@ -128,6 +137,16 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 | Spread | `GET /aggregator/quote` | Buy $100 with USDT, then quote selling it back. Ondo needs a wallet to quote, so spread shows **Unavailable** |
 
 Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
+
+### Wallet and buy flow (no transactions yet)
+
+- **Connect:** injected browser wallets only (Binance Web3 Wallet extension, MetaMask), via wagmi + viem on BNB Chain (chain 56). Wallets on another network are asked to switch. Bystok never sees a private key.
+- **Balances:** `POST /api/v1/dex/balance/token-balances-by-address` with `{ address, tokenContractAddresses: [{ binanceChainId, tokenContractAddress }] }`. Native BNB is `""`; zero balances are left out of the response.
+- **Live quote:** `GET /aggregator/quote` with `userWalletAddress`, refreshed when its 30 seconds run out. Price impact is computed from the quote's own unit prices.
+- **Ondo spread:** Ondo tokens only quote for a wallet, so once one is connected the selected token's spread is quoted for that wallet.
+- **Guards:** "Not enough USDT" and "You need a little BNB for network fees" (below 0.002 BNB). The button says **Swap coming next** and stays disabled.
+
+Requests send `X-OC-RECV-WINDOW: 60000`. Without it, a timestamp only ~3 seconds old is rejected (40103).
 
 ---
 

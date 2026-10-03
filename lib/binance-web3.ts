@@ -12,6 +12,12 @@ import { createHmac } from "node:crypto";
 //   X-OC-SIGN       Base64(HMAC-SHA256(timestamp + METHOD + requestPath + body, secret))
 // requestPath includes the /build prefix and the raw, already-encoded query string.
 // body is "" for GET.
+//
+// The default receive window rejects timestamps only ~3s old, which a slightly
+// slow clock plus network latency can exceed, so we send X-OC-RECV-WINDOW: 60000
+// (tested: accepts ±30s). It is not part of the signature.
+
+const RECV_WINDOW_MS = "60000";
 
 const ORIGIN = "https://web3.binance.com";
 const PREFIX = "/build";
@@ -24,9 +30,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   "40103": "Request timestamp is outside the allowed window — check the server clock.",
   "40104": "This API key is not allowed to call this endpoint.",
   "42900": "Rate limit hit (5 requests per second per endpoint). Try again shortly.",
-  "40367": "Ondo tokens can only be quoted while the US market is open.",
-  "40369": "BStock tokens can only be quoted while the US market is open.",
 };
+
+// Market-hours errors from the Trading API. The API's own message says when the
+// market reopens (e.g. "Expected to open in 1d 16h 29m"), so it is kept as-is.
+export const MARKET_CLOSED_CODES = ["40367", "40369"]; // Ondo, BStock
 
 export class BinanceWeb3Error extends Error {
   constructor(
@@ -118,6 +126,7 @@ async function send<T>(method: string, path: string, requestPath: string, body: 
       "X-OC-APIKEY": apiKey,
       "X-OC-TIMESTAMP": timestamp,
       "X-OC-SIGN": sign(timestamp, method, requestPath, body, secret),
+      "X-OC-RECV-WINDOW": RECV_WINDOW_MS,
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body || undefined,
@@ -125,7 +134,9 @@ async function send<T>(method: string, path: string, requestPath: string, body: 
   });
 
   const text = await res.text();
-  let json: { code?: string | number; msg?: string; message?: string; data?: T } | undefined;
+  // Most endpoints answer { code, msg, data }; a wrong HTTP method gets a different
+  // envelope: { status: "ERROR", code: "000002", errorData }.
+  let json: { code?: string | number; msg?: string; message?: string; errorData?: string; data?: T } | undefined;
   try {
     json = JSON.parse(text);
   } catch {
@@ -135,8 +146,9 @@ async function send<T>(method: string, path: string, requestPath: string, body: 
   // Errors arrive either as an HTTP error (auth: 401) or as HTTP 200 with a non-zero `code`.
   const code = json?.code === undefined ? undefined : String(json.code);
   if (!res.ok || (code !== undefined && code !== "0")) {
-    const err = new BinanceWeb3Error(code ?? String(res.status), res.status, json?.msg ?? json?.message ?? text.slice(0, 200));
-    if (err.code === "42900" && !retried) {
+    const err = new BinanceWeb3Error(code ?? String(res.status), res.status, json?.msg ?? json?.message ?? json?.errorData ?? text.slice(0, 200));
+    // One retry for rate limits and stale timestamps (a fresh timestamp is signed on retry).
+    if ((err.code === "42900" || err.code === "40103") && !retried) {
       await new Promise((r) => setTimeout(r, 1000));
       return send<T>(method, path, requestPath, body, true);
     }

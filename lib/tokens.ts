@@ -3,6 +3,7 @@
 import "server-only";
 
 import { BinanceWeb3Error, hasCredentials, web3Request } from "./binance-web3";
+import { CHAIN_ID, sampleSpread } from "./trade";
 import { COMMON_RISKS, sampleTokens } from "./sample-data";
 import type { TokenizedStock, TokensResponse } from "./types";
 
@@ -10,9 +11,6 @@ import type { TokenizedStock, TokensResponse } from "./types";
 // only ever call getTokens(). Response shapes below were checked against real
 // test calls (Oct 2026), not just the docs.
 
-const CHAIN_ID = "56"; // BNB Chain
-const USDT = "0x55d398326f99059ff775485246999027b3197955"; // BSC USDT, 18 decimals
-const SAMPLE_QUOTE_USD = 100; // spread is measured on a $100 round trip
 const HOUR = 3_600_000;
 
 // Underlyings shown when nobody has searched yet. The first one is selected on load,
@@ -71,13 +69,10 @@ type PriceInfo = {
 };
 
 type Pool = { liquidityUsd: string | null };
-type Quote = { toTokenAmount: string; toToken: { decimal: string } };
 
 // --- Helpers -----------------------------------------------------------------
 
 const num = (s: string | null | undefined) => (s == null || s === "" ? undefined : Number(s));
-const toUnits = (amount: number, decimals: number) => BigInt(Math.round(amount * 1e6)) * BigInt(10) ** BigInt(decimals - 6);
-const fromUnits = (raw: string, decimals: number) => Number(raw) / 10 ** decimals;
 
 function chunk<T>(items: T[], size: number) {
   const out: T[][] = [];
@@ -99,38 +94,6 @@ const nyTime = (ms: number) =>
 
 // --- Per-token lookups (each one is cached by web3Request) --------------------
 
-function quote(amount: bigint, from: string, to: string) {
-  return web3Request<Quote[]>("GET", "/api/v1/dex/aggregator/quote", {
-    query: { binanceChainId: CHAIN_ID, amount: amount.toString(), fromTokenAddress: from, toTokenAddress: to },
-  });
-}
-
-// Buys $100 of the token with USDT, then quotes selling that amount back.
-// ask = USD paid per token, bid = USD received per token.
-async function sampleSpread(t: RwaToken): Promise<{ bid: number | null; ask: number | null; warning?: string }> {
-  try {
-    const [buy] = await quote(toUnits(SAMPLE_QUOTE_USD, 18), USDT, t.tokenContractAddress);
-    const tokenDecimals = Number(buy.toToken.decimal);
-    const tokensOut = fromUnits(buy.toTokenAmount, tokenDecimals);
-    if (!(tokensOut > 0)) throw new Error("quote returned no tokens");
-    const [sell] = await quote(BigInt(buy.toTokenAmount), t.tokenContractAddress, USDT);
-    const usdBack = fromUnits(sell.toTokenAmount, Number(sell.toToken.decimal));
-    return { ask: SAMPLE_QUOTE_USD / tokensOut, bid: usdBack / tokensOut };
-  } catch (err) {
-    if (err instanceof BinanceWeb3Error) {
-      if (err.code === "40367" || err.code === "40369")
-        return { bid: null, ask: null, warning: `Spread unavailable outside market hours (${err.message})` };
-      if (/userWalletAddress/i.test(err.apiMessage))
-        return {
-          bid: null,
-          ask: null,
-          warning: "Spread unavailable: this token is sold by a market maker (RFQ) that only quotes a connected wallet.",
-        };
-    }
-    return { bid: null, ask: null, warning: `Spread unavailable: ${errorText(err)}` };
-  }
-}
-
 async function enrich(
   t: RwaToken,
   ctx: { prices: Map<string, RwaPrice>; info: Map<string, PriceInfo>; platforms: Map<string, RwaPlatform> },
@@ -148,7 +111,7 @@ async function enrich(
       warnings.push(`Liquidity unavailable: ${errorText(err)}`);
       return undefined;
     }),
-    sampleSpread(t),
+    sampleSpread(addr),
   ]);
   if (spread.warning) warnings.push(spread.warning);
 
@@ -192,7 +155,7 @@ async function enrich(
     provider: {
       name: providerName,
       backing:
-        `Each token tracks ${ratio === 1 ? "1 share" : `${ratio} shares`} of ${t.underlyingTicker}` +
+        `Each token tracks ${ratio === 1 ? "1 share" : `${ratio.toLocaleString("en-US", { maximumFractionDigits: 4 })} shares`} of ${t.underlyingTicker}` +
         (attestation?.supported ? "; the issuer publishes daily attestation reports." : "."),
       website: ctx.platforms.get(t.platformId)?.website,
       attestationUrl: attestation?.supported ? (attestation.url ?? undefined) : undefined,
@@ -236,9 +199,21 @@ async function pickTokens(all: RwaToken[], search?: string) {
   return all.filter((t) => wanted.has(t.tokenContractAddress)).slice(0, 12);
 }
 
+function listRwaTokens() {
+  return web3Request<RwaToken[]>("GET", "/api/v1/dex/market/rwa/tokens");
+}
+
+// True if the address is a tokenized stock on BNB Chain. Used to validate input
+// to the quote and spread routes, so they can't be used as an open proxy.
+export async function isRwaToken(address: string) {
+  const all = await listRwaTokens();
+  const a = address.toLowerCase();
+  return all.some((t) => t.binanceChainId === CHAIN_ID && t.tokenContractAddress.toLowerCase() === a);
+}
+
 async function getLiveTokens(search?: string): Promise<TokenizedStock[]> {
   const [all, platformList] = await Promise.all([
-    web3Request<RwaToken[]>("GET", "/api/v1/dex/market/rwa/tokens"),
+    listRwaTokens(),
     web3Request<RwaPlatform[]>("GET", "/api/v1/dex/market/rwa/platforms", { ttlMs: HOUR }).catch(() => []),
   ]);
   const picked = await pickTokens(

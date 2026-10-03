@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import Providers from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -39,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="ignore-extension-errors" strategy="beforeInteractive">
           {ignoreExtensionErrors}
         </Script>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

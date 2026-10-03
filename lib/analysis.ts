@@ -70,7 +70,7 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
           label: "Spread",
           value: "Unavailable",
           level: "caution",
-          hint: "No price quote is available without a connected wallet, so the buy/sell gap is unknown.",
+          hint: "We couldn't get a buy and sell quote, so the gap is unknown. Key risks below says why.",
         }
       : {
           label: "Spread",
