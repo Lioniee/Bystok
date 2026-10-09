@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="Bystok" width="120" height="120">
+</p>
+
 # Bystok
 
 **Know it, then buy it.**

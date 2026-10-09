@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Scanner from "@/components/Scanner";
 import WalletButton from "@/components/WalletButton";
 
@@ -6,9 +7,7 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh max-w-6xl xl:max-w-7xl flex-col px-4 sm:px-6">
       <header className="flex items-center justify-between gap-4 py-5">
         <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-brand text-lg font-black text-brand-fg">
-            B
-          </div>
+          <Image src="/logo.png" alt="Bystok" width={40} height={40} loading="eager" className="size-10 rounded-xl" />
           <div>
             <h1 className="text-xl font-bold leading-tight">Bystok</h1>
             <p className="text-sm text-muted">Know it, then buy it.</p>

@@ -3,9 +3,39 @@ import Script from "next/script";
 import Providers from "@/components/Providers";
 import "./globals.css";
 
+const title = "Bystok — Know it, then buy it.";
+const description = "Scan tokenized stocks on BNB Chain before you buy: liquidity, spread, price deviation and risks.";
+
+// Link previews need absolute image URLs. Set NEXT_PUBLIC_SITE_URL to the live
+// address; on Vercel the production URL is used automatically.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000");
+
+const ogImage = { url: "/og-image.png", width: 1200, height: 630, alt: "Bystok - Know it, then buy it." };
+
+// The favicon (app/icon.png) and Apple touch icon (app/apple-icon.png) are
+// picked up from the app folder automatically.
 export const metadata: Metadata = {
-  title: "Bystok — Know it, then buy it.",
-  description: "Scan tokenized stocks on BNB Chain before you buy: liquidity, spread, price deviation and risks.",
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  openGraph: {
+    type: "website",
+    siteName: "Bystok",
+    title,
+    description,
+    url: "/",
+    images: [ogImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [ogImage],
+  },
 };
 
 export const viewport: Viewport = {
