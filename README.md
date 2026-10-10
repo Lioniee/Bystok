@@ -4,7 +4,7 @@
 
 # Bystok
 
-**Know it, then buy it.** · Live: **[bystok.vercel.app](https://bystok.vercel.app)**
+**Know it, then buy it.** · Live: **[bystok.vercel.app](https://bystok.vercel.app)** · Docs: **[bystok.vercel.app/docs](https://bystok.vercel.app/docs)**
 
 Bystok is a tokenized-stock scanner for BNB Chain. Tokenized stocks (like NVDAB or TSLAon) track real shares, but the token can trade thin, at a wide spread, or away from the real share price, especially when the US market is closed. Bystok puts the facts a beginner needs on one screen before they buy: the real stock and its price, who issues the token and how it is backed, liquidity, spread, price deviation, whether the market is open, and the key risks in plain English, ending in a simple verdict. All data comes live from the Binance Web3 API.
 

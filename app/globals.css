@@ -45,3 +45,10 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Contents links on /docs glide to their section, unless reduced motion is on. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
