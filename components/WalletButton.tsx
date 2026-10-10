@@ -6,6 +6,24 @@ import { BSC_CHAIN_ID } from "@/lib/wagmi";
 
 export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+// WalletConnect's blue square with its "bridge" mark (drawn here, not copied).
+function WalletConnectIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6 shrink-0 rounded" aria-hidden>
+      <rect width="24" height="24" rx="6" fill="#3B99FC" />
+      <path d="M6.5 10.2c3-2.9 8-2.9 11 0" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />
+      <path
+        d="M4.6 12.6l3.3 3.2 4.1-3.9 4.1 3.9 3.3-3.2"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // Phones and tablets (including iPads, which report a desktop user agent).
 function isMobileBrowser() {
   const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
@@ -90,10 +108,11 @@ export default function WalletButton() {
   const injectedConnectors = connectors.filter((c) => c.type === "injected");
   const named = injectedConnectors.filter((c) => c.id !== "injected");
   const hasInjected = named.length > 0 || "ethereum" in window;
-  const options = hasInjected ? (named.length > 0 ? named : injectedConnectors) : [];
+  const installed = hasInjected ? (named.length > 0 ? named : injectedConnectors) : [];
   // Only present when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set (see lib/wagmi.ts).
   const walletConnector = connectors.find((c) => c.type === "walletConnect");
-  if (walletConnector) options.push(walletConnector);
+  const connectWith = (c: (typeof connectors)[number]) =>
+    connect.mutate({ connector: c, chainId: BSC_CHAIN_ID }, { onSuccess: () => setOpen(false) });
   // A normal phone browser has no injected wallet: offer to reopen the page
   // inside MetaMask's in-app browser instead.
   const showMobileHelp = !hasInjected && isMobileBrowser();
@@ -109,26 +128,44 @@ export default function WalletButton() {
         Connect wallet
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-64 rounded-xl border border-line bg-card p-2 shadow-lg">
-          {options.length > 0 && (
-            <ul className="grid gap-1">
-              {options.map((c) => (
-                <li key={c.uid}>
-                  <button
-                    type="button"
-                    onClick={() => connect.mutate({ connector: c, chainId: BSC_CHAIN_ID }, { onSuccess: () => setOpen(false) })}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg"
-                  >
-                    {c.icon ? (
-                      <img src={c.icon} alt="" className="size-5 rounded" />
-                    ) : (
-                      <span className="size-5 rounded bg-line" aria-hidden />
-                    )}
-                    {c.id === "injected" ? "Browser wallet" : c.type === "walletConnect" ? "WalletConnect" : c.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+        <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-line bg-card p-2 shadow-lg">
+          {installed.length > 0 && (
+            <>
+              <p className="px-2 pb-1 pt-1 text-xs font-bold uppercase tracking-wide text-muted">Installed</p>
+              <ul className="grid gap-1">
+                {installed.map((c) => (
+                  <li key={c.uid}>
+                    <button
+                      type="button"
+                      onClick={() => connectWith(c)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg"
+                    >
+                      {c.icon ? (
+                        <img src={c.icon} alt="" className="size-6 rounded" />
+                      ) : (
+                        <span className="size-6 rounded bg-line" aria-hidden />
+                      )}
+                      {c.id === "injected" ? "Browser wallet" : c.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {walletConnector && (
+            <div className={installed.length > 0 ? "mt-1 border-t border-line pt-1" : ""}>
+              <button
+                type="button"
+                onClick={() => connectWith(walletConnector)}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg"
+              >
+                <WalletConnectIcon />
+                <span className="min-w-0">
+                  <span className="block font-medium">Other wallets</span>
+                  <span className="block text-xs text-muted">(MetaMask mobile, Trust, Binance Wallet, OKX...)</span>
+                </span>
+              </button>
+            </div>
           )}
           {showMobileHelp ? (
             <div className="grid gap-2 p-2">
