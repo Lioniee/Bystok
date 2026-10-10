@@ -17,7 +17,8 @@ Bystok is a tokenized-stock scanner for BNB Chain. Tokenized stocks (like NVDAB 
 - **Live US market clock**: open/closed with a countdown, in New York time.
 - **Wallet connect** on BNB Chain (Binance Web3 Wallet, MetaMask, WalletConnect, or "Open in MetaMask" on phones), showing USDT/BNB balances and a **live buy quote** that refreshes every 30 seconds, with guards for low balances.
 - **Fresh data**: refreshed every 30 seconds, with an "updated" time in your time zone and a **Delayed** warning if refreshes fail.
-- Works on phones (single column) and desktop (sidebar | report | Buy panel), in light and dark mode, and respects reduced-motion settings.
+- **Four pages**: Scan (list and report), Swap (the Buy panel), MyStoks (holdings, coming with buying) and Docs. The selected stock carries across them.
+- Works on phones (bottom tab bar) and desktop (tabs in the header), with a light/dark toggle that remembers your choice, and respects reduced-motion settings.
 
 ## Binance Web3 API endpoints used
 

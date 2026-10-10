@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Light/dark comes from data-theme on <html>, set before first paint by the
+   script in app/layout.tsx (saved choice, else the system setting). Tailwind's
+   dark: utilities follow the same attribute. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Color tokens. Change them here and the whole app follows. */
 :root {
   --bg: #f6f7f9;
@@ -7,17 +12,29 @@
   --fg: #0f172a;
   --muted: #64748b;
   --line: #e4e7ec;
-  --brand: #f0b90b; /* BNB yellow */
+  --brand: #fdcb14; /* logo yellow */
   --brand-fg: #1a1400;
+  color-scheme: light;
 }
 
+:root[data-theme="dark"] {
+  --bg: #0b0e14;
+  --card: #141922;
+  --fg: #e6e9ef;
+  --muted: #93a0b4;
+  --line: #252d3b;
+  color-scheme: dark;
+}
+
+/* Without JavaScript, follow the system setting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #0b0e14;
     --card: #141922;
     --fg: #e6e9ef;
     --muted: #93a0b4;
     --line: #252d3b;
+    color-scheme: dark;
   }
 }
 
