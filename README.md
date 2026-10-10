@@ -152,7 +152,8 @@ Provider, market cap, liquidity and spread are **details**: they are fetched onl
 
 ### Wallet and buy flow (no transactions yet)
 
-- **Connect:** injected browser wallets only (Binance Web3 Wallet extension, MetaMask), via wagmi + viem on BNB Chain (chain 56). Wallets on another network are asked to switch. Bystok never sees a private key.
+- **Connect:** injected browser wallets (Binance Web3 Wallet extension, MetaMask), via wagmi + viem on BNB Chain (chain 56). Wallets on another network are asked to switch. Bystok never sees a private key.
+- **Phones:** a normal mobile browser has no wallet, so the menu offers **Open in MetaMask** (MetaMask universal link to this page) and suggests opening the page inside a wallet app's browser. Set `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` (free, from dashboard.reown.com) to add a **WalletConnect** option for phone wallet apps; without it the option is hidden.
 - **Balances:** `POST /api/v1/dex/balance/token-balances-by-address` with `{ address, tokenContractAddresses: [{ binanceChainId, tokenContractAddress }] }`. Native BNB is `""`; zero balances are left out of the response.
 - **Live quote:** `GET /aggregator/quote` with `userWalletAddress`, refreshed when its 30 seconds run out. Price impact is computed from the quote's own unit prices.
 - **Ondo spread:** Ondo tokens only quote for a wallet, so once one is connected the selected token's spread is quoted for that wallet.

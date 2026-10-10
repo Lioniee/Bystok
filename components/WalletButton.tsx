@@ -6,6 +6,20 @@ import { BSC_CHAIN_ID } from "@/lib/wagmi";
 
 export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+// Phones and tablets (including iPads, which report a desktop user agent).
+function isMobileBrowser() {
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (nav.userAgentData?.mobile) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent) || (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
+}
+
+// MetaMask universal link: opens this exact page in MetaMask's in-app browser
+// (or the app store if MetaMask isn't installed). It takes host + path, no protocol.
+function metaMaskDappLink() {
+  const { host, pathname, search } = window.location;
+  return `https://metamask.app.link/dapp/${host}${pathname}${search}`;
+}
+
 const pill = "rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium";
 
 // Connect / switch network / disconnect. Only injected browser wallets.
@@ -73,9 +87,16 @@ export default function WalletButton() {
 
   // Wallets that announce themselves (EIP-6963) have their own names; hide the
   // generic "Injected" fallback when at least one of those is present.
-  const named = connectors.filter((c) => c.id !== "injected");
-  const options = named.length > 0 ? named : connectors;
-  const hasWallet = typeof window !== "undefined" && (named.length > 0 || "ethereum" in window);
+  const injectedConnectors = connectors.filter((c) => c.type === "injected");
+  const named = injectedConnectors.filter((c) => c.id !== "injected");
+  const hasInjected = named.length > 0 || "ethereum" in window;
+  const options = hasInjected ? (named.length > 0 ? named : injectedConnectors) : [];
+  // Only present when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set (see lib/wagmi.ts).
+  const walletConnector = connectors.find((c) => c.type === "walletConnect");
+  if (walletConnector) options.push(walletConnector);
+  // A normal phone browser has no injected wallet: offer to reopen the page
+  // inside MetaMask's in-app browser instead.
+  const showMobileHelp = !hasInjected && isMobileBrowser();
 
   return (
     <div ref={menuRef} className="relative">
@@ -89,7 +110,7 @@ export default function WalletButton() {
       </button>
       {open && (
         <div className="absolute right-0 z-10 mt-2 w-64 rounded-xl border border-line bg-card p-2 shadow-lg">
-          {hasWallet ? (
+          {options.length > 0 && (
             <ul className="grid gap-1">
               {options.map((c) => (
                 <li key={c.uid}>
@@ -103,15 +124,28 @@ export default function WalletButton() {
                     ) : (
                       <span className="size-5 rounded bg-line" aria-hidden />
                     )}
-                    {c.id === "injected" ? "Browser wallet" : c.name}
+                    {c.id === "injected" ? "Browser wallet" : c.type === "walletConnect" ? "WalletConnect" : c.name}
                   </button>
                 </li>
               ))}
             </ul>
+          )}
+          {showMobileHelp ? (
+            <div className="grid gap-2 p-2">
+              <a
+                href={metaMaskDappLink()}
+                className="rounded-lg bg-brand px-3 py-2 text-center text-sm font-bold text-brand-fg hover:brightness-95"
+              >
+                Open in MetaMask
+              </a>
+              <p className="text-xs text-muted">Or open this page inside your wallet app’s browser.</p>
+            </div>
           ) : (
-            <p className="p-2 text-sm">
-              No browser wallet found. Install the Binance Web3 Wallet extension or MetaMask, then reload.
-            </p>
+            !hasInjected && (
+              <p className="p-2 text-sm">
+                No browser wallet found. Install the Binance Web3 Wallet extension or MetaMask, then reload.
+              </p>
+            )
           )}
           {connect.error && (
             <p role="alert" className="mt-1 p-2 text-xs text-red-600 dark:text-red-400">
