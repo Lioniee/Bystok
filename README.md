@@ -4,173 +4,74 @@
 
 # Bystok
 
-**Know it, then buy it.**
+**Know it, then buy it.** · Live: **[bystok.vercel.app](https://bystok.vercel.app)**
 
-Bystok is a tokenized-stock scanner for BNB Chain, built for the BNB Chain hackathon.
-Pick a tokenized stock (for example `TSLAx`) and see, on one screen:
+Bystok is a tokenized-stock scanner for BNB Chain. Tokenized stocks (like NVDAB or TSLAon) track real shares, but the token can trade thin, at a wide spread, or away from the real share price, especially when the US market is closed. Bystok puts the facts a beginner needs on one screen before they buy: the real stock and its price, who issues the token and how it is backed, liquidity, spread, price deviation, whether the market is open, and the key risks in plain English, ending in a simple verdict. All data comes live from the Binance Web3 API.
 
-- the **underlying stock** and its real price
-- the **token provider** and how the token is backed
-- **liquidity**, **spread** and **price deviation** from the real stock
-- whether the US stock **market is open** right now, with a live countdown to the next open or close
-- the **key risks**, in plain English
+## Features
 
-Then buy from the same screen.
+- **Scanner report**: underlying stock, issuer and backing (with attestation report link), liquidity, spread, price deviation (adjusted for shares per token) and market status, graded Good / Caution / Risky, plus an overall verdict and key risks.
+- **Market list**: the 30 most traded tokenized stocks by 24h on-chain volume, with price and 24h ▲/▼ change, plus a self-scrolling **Most traded (24h)** ticker.
+- **Search all 488 stocks** as you type, by ticker or company name, showing both the bStock and Ondo versions.
+- **Watchlist**, saved in the browser.
+- **Live US market clock**: open/closed with a countdown, in New York time.
+- **Wallet connect** on BNB Chain (Binance Web3 Wallet, MetaMask, WalletConnect, or "Open in MetaMask" on phones), showing USDT/BNB balances and a **live buy quote** that refreshes every 30 seconds, with guards for low balances.
+- **Fresh data**: refreshed every 30 seconds, with an "updated" time in your time zone and a **Delayed** warning if refreshes fail.
+- Works on phones (single column) and desktop (sidebar | report | Buy panel), in light and dark mode, and respects reduced-motion settings.
 
-> Token data is **live** from the Binance Web3 API when a key is configured, and falls back to clearly labelled **sample data** otherwise. Connect a browser wallet to see your balances and a live quote. The swap itself isn't built yet, so **no transaction is ever sent**.
+## Binance Web3 API endpoints used
 
----
+All calls go to `https://web3.binance.com/build`, signed on the server with HMAC-SHA256. The API key never reaches the browser.
+
+| Endpoint | Used for |
+| --- | --- |
+| `GET /api/v1/dex/market/rwa/tokens` | The full list of tokenized stocks on BNB Chain: prices, issuer, trading status |
+| `GET /api/v1/dex/market/rwa/platforms` | Issuer details (Ondo, bStocks) |
+| `GET /api/v1/dex/market/rwa/search` | Search fallback, for stocks missing from the token list |
+| `GET /api/v1/dex/market/rwa/price` | Token price vs the real stock's reference price (price deviation) |
+| `GET /api/v1/dex/market/rwa/underlying-profile` | Shares per token and the issuer's attestation report |
+| `GET /api/v1/dex/market/rwa/underlying-market` | Market cap and market status of the real stock |
+| `POST /api/v1/dex/market/price-info` | 24h on-chain volume, 24h price change and holders (batched, 100 tokens per call) |
+| `GET /api/v1/dex/market/token/top-liquidity` | Liquidity: sum of the token's trading pools |
+| `GET /api/v1/dex/aggregator/quote` | Spread (a $100 buy and sell-back quote) and the live buy quote |
+| `POST /api/v1/dex/balance/token-balances-by-address` | The connected wallet's USDT and BNB balances |
+
+Responses are cached on the server for 30 seconds and paced to stay under the 5 requests/second limit. Heavy details (profile, pools, spread) are fetched only for the stock you select.
 
 ## Run it locally
 
-You need **Node.js 20 or newer** ([nodejs.org](https://nodejs.org)). Check with `node -v`.
+You need **Node.js 20+**.
 
 ```bash
-# 1. Install dependencies (first time only)
 npm install
-
-# 2. Start the dev server
-npm run dev
+cp .env.example .env.local   # then fill in the values below
+npm run dev                  # http://localhost:3000
 ```
 
-Open **http://localhost:3000**. Saving any file reloads the page automatically.
-
-Other commands:
-
-| Command             | What it does                                        |
-| ------------------- | --------------------------------------------------- |
-| `npm run dev`       | Development server with live reload                 |
-| `npm run build`     | Production build (also catches type errors)         |
-| `npm start`         | Run the production build (after `npm run build`)    |
-| `npm run typecheck` | Check TypeScript types without building             |
-
----
-
-## How the project is organised
-
-```
-app/
-  layout.tsx            Page shell: <html>, title, mobile viewport
-  page.tsx              Home page: header, scanner, footer
-  globals.css           Tailwind + color tokens (light & dark mode)
-  api/tokens/route.ts   GET /api/tokens: scanner data (server only)
-  api/balances/route.ts GET /api/balances?address=: USDT + BNB balances
-  api/quote/route.ts    GET /api/quote?token=&amount=&wallet=: live buy quote
-  api/spread/route.ts   GET /api/spread?token=&wallet=: bid/ask quoted for a wallet
-components/
-  Scanner.tsx           Fetches /api/tokens, holds the selected token
-  TokenPicker.tsx       Markets / Watchlist tabs, search, token cards (24h change, + to watch)
-  useWatchlist.ts       Watchlist saved in this browser (localStorage)
-  MarketTicker.tsx      "Most traded (24h)" ticker at the top (all screen sizes)
-  PriceChange.tsx       24h ▲/▼ change badge
-  useAutoScroll.ts      Self-scrolling, looping ticker
-  TokenReport.tsx       Verdict, stock, provider, checks, risks
-  BuyPanel.tsx          Amount, balances, live quote + countdown, guards
-  WalletButton.tsx      Connect / switch to BNB Chain / disconnect
-  Providers.tsx         wagmi + React Query context
-  buy-hooks.ts          Client hooks: wallet, balances, live quote, wallet spread
-  LevelBadge.tsx        Good / Caution / Risky pill
-lib/
-  types.ts              The TokenizedStock data shape
-  sample-data.ts        Made-up tokens used until the real API is wired in
-  analysis.ts           The scanner logic: thresholds -> checks -> verdict + risks
-  tokens.ts             Token list, search and per-token details: the ONE place scanner data is loaded (server-only)
-  trade.ts              Quotes, spread and wallet balances (server-only)
-  binance-web3.ts       Signed API client: HMAC signing, cache, rate limiting (server-only)
-  wagmi.ts              Wallet config: BNB Chain, injected wallets
-  format.ts             $ and % formatting
-  market-hours.ts       Live NYSE open/closed + countdown (New York time, DST-aware)
-```
-
-### How data flows
-
-```
-Browser (Scanner.tsx)
-   │  fetch("/api/tokens")
-   ▼
-app/api/tokens/route.ts      ← runs on the server
-   │  getTokens()
-   ▼
-lib/tokens.ts                ← picks tokens, maps API data into TokenizedStock
-   │                              falls back to sample-data.ts if the API fails
-   ▼
-lib/binance-web3.ts          ← signs requests (server only), 30s cache, rate limiting
-   │
-   ▼
-https://web3.binance.com/build
-```
-
-The browser never sees the API key. It only talks to our own `/api/tokens` route.
-`lib/tokens.ts` imports `server-only`, so the build fails if someone accidentally imports it into browser code.
-
-### How the checks are graded
-
-All thresholds are in `lib/analysis.ts` (`THRESHOLDS`):
-
-| Check           | Good          | Caution        | Risky        |
-| --------------- | ------------- | -------------- | ------------ |
-| Liquidity       | ≥ $1M         | ≥ $250K        | below $250K  |
-| Spread          | ≤ 0.3%        | ≤ 1%           | above 1%     |
-| Price deviation | within ±0.5%  | within ±1.5%   | beyond ±1.5% |
-| Market status   | Open          | Closed         | n/a          |
-
-The overall verdict is **High risk** if any check is Risky, **Proceed with care** if any is Caution, otherwise **Looks healthy**.
-
----
-
-## Binance Web3 API
-
-1. Copy `.env.example` to `.env.local` and paste your key and secret:
-   ```
-   BINANCE_WEB3_API_KEY=your_key_here
-   BINANCE_WEB3_API_SECRET=your_secret_here
-   ```
-   `.env.local` is git-ignored. Don't prefix the variables with `NEXT_PUBLIC_`, because that would expose them to the browser.
-2. Restart `npm run dev` (env files are only read at startup).
-
-When deploying (e.g. Vercel), add the same variables in the host's environment settings.
-The server clock must be accurate: requests with a timestamp even 30 seconds off are rejected (error 40103).
-
-### Where each number comes from (BNB Chain only)
-
-| Field | Endpoint | Notes |
+| Variable | Required | What it's for |
 | --- | --- | --- |
-| Token list | `GET /api/v1/dex/market/rwa/tokens` + `POST /market/price-info` (100 tokens per call) | Top 30 of 488 by on-chain 24h volume, as light summaries (price, 24h change, volume). NVDAB is always included and selected first. `/rwa/tokens` leaves out about half the bStock tokens (46 of 91); search still finds them |
-| Provider | `GET /rwa/platforms` + `/rwa/underlying-profile` | Attestation report link when the issuer publishes one |
-| Search | full list, then `GET /rwa/search` | Matches all 488 tokens by ticker, company name or symbol (with or without the "on"/"B" suffix), as you type. Falls back to `/rwa/search` when nothing matches or a stock is missing its bStock/Ondo version. Error 40382 means no results |
-| Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` × shares per token (`tokenToShareRatio`: NFLXon tracks 10 shares) |
-| Market cap | `GET /rwa/underlying-market` | |
-| Liquidity | `GET /market/token/top-liquidity` | Sum of pools that report `liquidityUsd`. Ondo tokens trade only via RFQ market makers, which report none, so liquidity shows **Unavailable** |
-| Volume, holders, 24h change | `POST /market/price-info` | Volume is `buyVolume24H + sellVolume24H` (on-chain). `volume24H` is the real stock's volume, so it's not used |
-| Spread | `GET /aggregator/quote` | Buy $100 with USDT, then quote selling it back. Ondo needs a wallet to quote, so spread shows **Unavailable** |
+| `BINANCE_WEB3_API_KEY` | Yes, for live data | Binance Web3 API key (server only) |
+| `BINANCE_WEB3_API_SECRET` | Yes, for live data | Binance Web3 API secret (server only) |
+| `NEXT_PUBLIC_SITE_URL` | No | Public site address for link previews; on Vercel it's detected automatically |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | No | Shows the WalletConnect option (free ID from dashboard.reown.com) |
 
-Provider, market cap, liquidity and spread are **details**: they are fetched only for the selected token (`/api/token`), when it is clicked. Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second). Calls slower than 1.5 seconds are logged.
+Without the API key and secret, the app still runs on labelled sample data. `npm run build` makes a production build (and checks types).
 
-**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On wide screens the layout is sidebar (tabs, search, token list) | report | Buy panel, with a **Most traded (24h)** ticker on top: the top 8 listed tokens by on-chain 24h volume (from `price-info`, no extra calls). On medium screens the Buy panel moves under the report. On phones everything stacks in one column: ticker, picker (first 4 stocks with **Show all stocks**), report, Buy panel; picking a stock scrolls down to its report. The ticker scrolls by itself in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion. Nothing else on the page scrolls sideways.
+## Known limitations
 
-**Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
+- **Buying isn't built yet.** Bystok connects a wallet and shows a live quote, but the button reads "Swap coming next" and no transaction is ever sent.
+- **Ondo tokens need a connected wallet for quotes.** They're sold by market makers (RFQ), so their spread shows "Unavailable" until a wallet is connected, and their liquidity is always "Unavailable" (RFQ pools don't publish sizes).
+- **Sample-data fallback.** If the Binance Web3 API can't be reached, the app shows clearly labelled **sample data** (made-up numbers) and search is limited to those sample tokens.
+- `/rwa/tokens` lists 488 tokens and leaves out about half of the bStock tokens; those can only be found by searching.
+- The market clock doesn't know exchange holidays or early closes yet.
 
-### Wallet and buy flow (no transactions yet)
+## What's next
 
-- **Connect:** injected browser wallets (Binance Web3 Wallet extension, MetaMask), via wagmi + viem on BNB Chain (chain 56). Wallets on another network are asked to switch. Bystok never sees a private key.
-- **Phones:** a normal mobile browser has no wallet, so the menu offers **Open in MetaMask** (MetaMask universal link to this page) and suggests opening the page inside a wallet app's browser. Set `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` (free, from dashboard.reown.com) to add a **WalletConnect** option for phone wallet apps; without it the option is hidden.
-- **Balances:** `POST /api/v1/dex/balance/token-balances-by-address` with `{ address, tokenContractAddresses: [{ binanceChainId, tokenContractAddress }] }`. Native BNB is `""`; zero balances are left out of the response.
-- **Live quote:** `GET /aggregator/quote` with `userWalletAddress`, refreshed when its 30 seconds run out. Price impact is computed from the quote's own unit prices.
-- **Ondo spread:** Ondo tokens only quote for a wallet, so once one is connected the selected token's spread is quoted for that wallet.
-- **Guards:** "Not enough USDT" and "You need a little BNB for network fees" (below 0.002 BNB). The button says **Swap coming next** and stays disabled.
-
-Requests send `X-OC-RECV-WINDOW: 60000`. Without it, a timestamp only ~3 seconds old is rejected (40103).
+1. **bStock buying** (swap): approve the exact USDT amount, build the swap, simulate it, then have the wallet sign. It will have a per-buy cap, 1% slippage, router address checks and transaction tracking. The plan is written.
+2. **Ondo buying** (RFQ): sign the market maker's order in the wallet and track it until filled.
+3. US exchange holidays and early closes in the market clock.
+4. Price and spread alerts for watchlist stocks.
 
 ---
 
 _Bystok is an educational tool, not financial advice._
-
-## Market hours
-
-`lib/market-hours.ts` works out whether the US market is open from the **real current time**:
-9:30am–4:00pm New York time, Monday–Friday (NASDAQ shares NYSE's hours).
-It uses the `America/New_York` time zone, so daylight-saving changes are handled automatically,
-and the scanner refreshes the status and countdown every second.
-
-Not handled yet: **exchange holidays** (e.g. Thanksgiving, New Year's Day) and **early closes** (1pm).
-On those days the app will say "Open" when the exchange is actually closed.
