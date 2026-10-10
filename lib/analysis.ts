@@ -40,7 +40,10 @@ const THRESHOLDS = {
 // `clock` is the live US market clock (see market-hours.ts), shared by every token.
 export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
   const spreadPct = t.bid !== null && t.ask !== null ? ((t.ask - t.bid) / ((t.bid + t.ask) / 2)) * 100 : null;
-  const deviationPct = ((t.tokenPrice - t.underlying.price) / t.underlying.price) * 100;
+  // Compare with what the token should be worth: one token can track more or
+  // less than one share (NFLXon tracks 10, DISon 1.0101), so scale the share price.
+  const fairValue = t.underlying.price * (t.underlying.sharesPerToken ?? 1);
+  const deviationPct = ((t.tokenPrice - fairValue) / fairValue) * 100;
   const absDev = Math.abs(deviationPct);
 
   // Missing data is a "caution", not a pass: we can't vouch for what we can't measure.
@@ -82,7 +85,7 @@ export function analyze(t: TokenizedStock, clock: MarketClock): Analysis {
 
   // An exact match is suspicious rather than reassuring: the issuer may simply be
   // reporting the last reference price instead of a live token price.
-  const pegged = t.tokenPrice === t.underlying.price;
+  const pegged = Math.abs(t.tokenPrice - fairValue) <= fairValue * 1e-9;
   const deviation: Check = pegged
     ? {
         label: "Price deviation",

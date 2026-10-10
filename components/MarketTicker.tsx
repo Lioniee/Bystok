@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import type { TokenizedStock } from "@/lib/types";
+import type { TokenSummary } from "@/lib/types";
 import { compactUsd, usd } from "@/lib/format";
 import PriceChange from "./PriceChange";
 import { useAutoScroll, useMediaQuery } from "./useAutoScroll";
@@ -9,9 +9,9 @@ import { useAutoScroll, useMediaQuery } from "./useAutoScroll";
 const TOP_N = 8;
 
 type Props = {
-  tokens: TokenizedStock[];
+  tokens: TokenSummary[];
   selectedId: string;
-  onSelect: (id: string) => void;
+  onSelect: (t: TokenSummary) => void;
 };
 
 // "Most traded (24h)" ticker at the top of the page: the loaded tokens ranked
@@ -32,7 +32,7 @@ export default function MarketTicker({ tokens, selectedId, onSelect }: Props) {
 
   if (top.length === 0) return null;
 
-  const item = (t: TokenizedStock, rank: number, copy: boolean, loopStart = false) => {
+  const item = (t: TokenSummary, rank: number, copy: boolean, loopStart = false) => {
     const active = t.id === selectedId;
     return (
       <li
@@ -44,7 +44,7 @@ export default function MarketTicker({ tokens, selectedId, onSelect }: Props) {
       >
         <button
           type="button"
-          onClick={() => onSelect(t.id)}
+          onClick={() => onSelect(t)}
           aria-pressed={active}
           tabIndex={copy ? -1 : undefined}
           className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${

@@ -74,7 +74,7 @@ lib/
   types.ts              The TokenizedStock data shape
   sample-data.ts        Made-up tokens used until the real API is wired in
   analysis.ts           The scanner logic: thresholds -> checks -> verdict + risks
-  tokens.ts             getTokens(): the ONE place scanner data is loaded (server-only)
+  tokens.ts             Token list, search and per-token details: the ONE place scanner data is loaded (server-only)
   trade.ts              Quotes, spread and wallet balances (server-only)
   binance-web3.ts       Signed API client: HMAC signing, cache, rate limiting (server-only)
   wagmi.ts              Wallet config: BNB Chain, injected wallets
@@ -135,18 +135,18 @@ The server clock must be accurate: requests with a timestamp even 30 seconds off
 
 | Field | Endpoint | Notes |
 | --- | --- | --- |
-| Token list, status | `GET /api/v1/dex/market/rwa/tokens` | Default view shows NVDA, TSLA, AAPL, SPY, MSFT, COIN (NVDAB selected first) |
+| Token list | `GET /api/v1/dex/market/rwa/tokens` + `POST /market/price-info` (100 tokens per call) | Top 30 of 488 by on-chain 24h volume, as light summaries (price, 24h change, volume). NVDAB is always included and selected first. `/rwa/tokens` leaves out about half the bStock tokens (46 of 91); search still finds them |
 | Provider | `GET /rwa/platforms` + `/rwa/underlying-profile` | Attestation report link when the issuer publishes one |
-| Search | `GET /rwa/search` | Used when a search has no local match |
-| Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` |
+| Search | full list, then `GET /rwa/search` | Matches all 488 tokens by ticker, company name or symbol (with or without the "on"/"B" suffix), as you type. Falls back to `/rwa/search` when nothing matches or a stock is missing its bStock/Ondo version. Error 40382 means no results |
+| Token vs stock price | `GET /rwa/price` | `tokenPrice` vs `referencePrice` × shares per token (`tokenToShareRatio`: NFLXon tracks 10 shares) |
 | Market cap | `GET /rwa/underlying-market` | |
 | Liquidity | `GET /market/token/top-liquidity` | Sum of pools that report `liquidityUsd`. Ondo tokens trade only via RFQ market makers, which report none, so liquidity shows **Unavailable** |
 | Volume, holders, 24h change | `POST /market/price-info` | Volume is `buyVolume24H + sellVolume24H` (on-chain). `volume24H` is the real stock's volume, so it's not used |
 | Spread | `GET /aggregator/quote` | Buy $100 with USDT, then quote selling it back. Ondo needs a wallet to quote, so spread shows **Unavailable** |
 
-Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second).
+Provider, market cap, liquidity and spread are **details**: they are fetched only for the selected token (`/api/token`), when it is clicked. Responses are cached on the server for 30 seconds, and calls to the same endpoint are spaced 220ms apart (the limit is 5/second). Calls slower than 1.5 seconds are logged.
 
-**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On wide screens the layout is sidebar (tabs, search, token list) | report | Buy panel, with a **Most traded (24h)** ticker on top: the top 8 loaded tokens by on-chain 24h volume (from `price-info`, no extra calls). On medium screens the Buy panel moves under the report. On phones everything stacks in one column: ticker, picker (first 4 stocks with **Show all stocks**), report, Buy panel; picking a stock scrolls down to its report. The ticker scrolls by itself in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion. Nothing else on the page scrolls sideways.
+**Token picker.** Cards show the 24h price change from `price-info` (`priceChange24H` is already a percentage). Tap **+** to add a stock to the **Watchlist** tab; it's saved in this browser only. On wide screens the layout is sidebar (tabs, search, token list) | report | Buy panel, with a **Most traded (24h)** ticker on top: the top 8 listed tokens by on-chain 24h volume (from `price-info`, no extra calls). On medium screens the Buy panel moves under the report. On phones everything stacks in one column: ticker, picker (first 4 stocks with **Show all stocks**), report, Buy panel; picking a stock scrolls down to its report. The ticker scrolls by itself in a loop, pausing on hover, touch, keyboard focus, wheel or swipe and resuming 3 seconds later; it stays still if the device asks for reduced motion. Nothing else on the page scrolls sideways.
 
 **Freshness.** The page itself is a static shell with no prices in it; the browser loads data from `/api/tokens`, which runs on every request (never at build time) and is sent with `Cache-Control: no-store`. The scanner refetches every 30 seconds while the tab is visible and again when you return to the tab. The "updated" time is shown in the viewer's own time zone, and turns into a **Delayed** warning if data is over 90 seconds old or a refresh fails.
 

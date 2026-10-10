@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TokenizedStock } from "@/lib/types";
+import type { TokenSummary } from "@/lib/types";
 
 // The viewer's watchlist, kept in this browser only (localStorage). Every
 // storage access is wrapped in try/catch: private windows and blocked storage
@@ -46,7 +46,7 @@ export function useWatchlist() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const toggle = useCallback((t: TokenizedStock) => {
+  const toggle = useCallback((t: TokenSummary) => {
     setEntries((prev) => {
       const next = prev.some((e) => e.id === t.id)
         ? prev.filter((e) => e.id !== t.id)

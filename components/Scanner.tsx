@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TokenizedStock, TokensResponse } from "@/lib/types";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import type { ApiResult, TokenizedStock, TokenSummary, TokensResponse } from "@/lib/types";
 import { analyze } from "@/lib/analysis";
 import { formatCountdown, getMarketClock } from "@/lib/market-hours";
 import TokenPicker from "./TokenPicker";
@@ -11,6 +11,7 @@ import BuyPanel from "./BuyPanel";
 import MarketTicker from "./MarketTicker";
 import { useNow, useWallet, useWalletSpread } from "./buy-hooks";
 import { useWatchlist } from "./useWatchlist";
+import { loadTokens } from "./token-api";
 
 // The server caches Binance responses for 30s, so polling faster gains nothing.
 const REFRESH_MS = 30_000;
@@ -27,16 +28,28 @@ function useMarketClock() {
   return clock;
 }
 
+// Selected on first load: NVDAB has deep liquidity, a live spread and a live price.
+const DEFAULT_TOKEN_ID = "nvdab";
+
 // Module-level so React Query can keep the combined result stable between renders.
-function allSearchedTokens(results: { data?: TokensResponse }[]) {
-  return results.flatMap((r) => r.data?.tokens ?? []);
+function combineRestored(results: { data?: TokensResponse; isPending: boolean }[]) {
+  return { tokens: results.flatMap((r) => r.data?.tokens ?? []), pending: results.filter((r) => r.isPending).length };
 }
 
-async function loadTokens(query?: string) {
-  const res = await fetch(query ? `/api/tokens?q=${encodeURIComponent(query)}` : "/api/tokens", { cache: "no-store" });
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
-  return (await res.json()) as TokensResponse;
+// Full report data for one token. The symbol is only a display hint for tokens
+// that /rwa/tokens leaves out.
+async function loadDetail(t: TokenSummary) {
+  const params = new URLSearchParams({ address: t.contractAddress ?? "", symbol: t.symbol });
+  const res = await fetch(`/api/token?${params}`, { cache: "no-store" });
+  const json = (await res.json()) as ApiResult<TokenizedStock>;
+  if (!json.ok) throw new Error(json.error);
+  return json.data;
 }
+
+const dedupe = (tokens: TokenSummary[]) => {
+  const seen = new Set<string>();
+  return tokens.filter((t) => !seen.has(t.id) && seen.add(t.id));
+};
 
 // Says plainly whether the numbers are real. Sample data gets a loud label.
 function DataSource({ data, refreshFailed }: { data: TokensResponse; refreshFailed: boolean }) {
@@ -138,74 +151,52 @@ function ScannerSkeleton() {
   );
 }
 
-// Loads tokens from our own server route (/api/tokens), never from Binance
-// directly, so the API key stays on the server.
-// Data is refetched every 30 seconds while the tab is visible, and right away
-// when the viewer comes back to the tab, so a page left open never shows
-// hours-old prices.
+// Loads tokens from our own server routes, never from Binance directly, so the
+// API key stays on the server:
+// - /api/tokens: the top 30 by 24h volume as light summaries (price, change,
+//   volume), refetched every 30 seconds while the tab is visible;
+// - /api/token: full details for the selected token only, cached for 30 seconds.
 export default function Scanner() {
-  const queryClient = useQueryClient();
-  const [searches, setSearches] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selected, setSelected] = useState<TokenSummary | null>(null);
+  const [restoreQueries, setRestoreQueries] = useState<string[]>([]);
   const clock = useMarketClock();
 
   const refresh = { refetchInterval: REFRESH_MS, refetchOnWindowFocus: true, staleTime: REFRESH_MS } as const;
   const main = useQuery({ queryKey: ["tokens"], queryFn: () => loadTokens(), ...refresh });
-  const searchedTokens = useQueries({
-    queries: searches.map((q) => ({ queryKey: ["tokens", q], queryFn: () => loadTokens(q), ...refresh })),
-    combine: allSearchedTokens,
+  const restored = useQueries({
+    queries: restoreQueries.map((q) => ({ queryKey: ["tokens", q], queryFn: () => loadTokens(q), ...refresh })),
+    combine: combineRestored,
   });
-
-  // Default list first, then tokens found by searching, without duplicates.
-  const data = useMemo<TokensResponse | null>(() => {
-    if (!main.data) return null;
-    const known = new Set(main.data.tokens.map((t) => t.id));
-    const extra = searchedTokens.filter((t) => !known.has(t.id) && known.add(t.id));
-    return { ...main.data, tokens: [...main.data.tokens, ...extra] };
-  }, [main.data, searchedTokens]);
-
-  useEffect(() => {
-    if (!selectedId && data?.tokens[0]) setSelectedId(data.tokens[0].id);
-  }, [data, selectedId]);
-
-  // Searches every tokenized stock on the server and adds the matches to the list.
-  const searchAll = useCallback(
-    async (query: string) => {
-      const found = await queryClient.fetchQuery({ queryKey: ["tokens", query], queryFn: () => loadTokens(query) });
-      setSearches((prev) => (prev.includes(query) ? prev : [...prev, query]));
-      return found.tokens.length;
-    },
-    [queryClient],
-  );
-
-  // Saved tokens that aren't in the default list (found by searching earlier)
-  // are fetched again by ticker after a reload, once per ticker.
-  const watchlist = useWatchlist();
-  const restoreTried = useRef(new Set<string>());
-  const [restoring, setRestoring] = useState(0);
+  const data = main.data ?? null;
   const live = data?.source === "live";
+
+  // Every token summary we know about: the list plus watched tokens outside it.
+  const known = useMemo(() => dedupe([...(data?.tokens ?? []), ...restored.tokens]), [data, restored.tokens]);
+
   useEffect(() => {
-    if (!live || !data) return;
-    const have = new Set(data.tokens.map((t) => t.id));
-    const tickers = [
-      ...new Set(watchlist.entries.filter((e) => !have.has(e.id)).map((e) => e.ticker)),
-    ].filter((ticker) => !restoreTried.current.has(ticker));
-    for (const ticker of tickers) {
-      restoreTried.current.add(ticker);
-      setRestoring((n) => n + 1);
-      searchAll(ticker)
-        .catch(() => 0)
-        .finally(() => setRestoring((n) => n - 1));
-    }
-  }, [live, data, watchlist.entries, searchAll]);
+    if (!selected && data?.tokens.length) setSelected(data.tokens.find((t) => t.id === DEFAULT_TOKEN_ID) ?? data.tokens[0]);
+  }, [data, selected]);
+
+  // Watched tokens that aren't in the top 30 are looked up again by ticker
+  // (after a reload, or when one is added from search results).
+  const watchlist = useWatchlist();
+  useEffect(() => {
+    if (!live) return;
+    const have = new Set(known.map((t) => t.id));
+    const missing = [...new Set(watchlist.entries.filter((e) => !have.has(e.id)).map((e) => e.ticker))];
+    setRestoreQueries((prev) => {
+      const add = missing.filter((ticker) => !prev.includes(ticker));
+      return add.length ? [...prev, ...add] : prev;
+    });
+  }, [live, known, watchlist.entries]);
 
   // Picking a token from the list or ticker. On phones the report is further
   // down the page, so scroll to it (smoothly, unless reduced motion is on).
   // The automatic first selection on load doesn't scroll.
   const reportRef = useRef<HTMLDivElement>(null);
   const [scrollRequest, setScrollRequest] = useState(0);
-  const selectToken = useCallback((id: string) => {
-    setSelectedId(id);
+  const selectToken = useCallback((t: TokenSummary) => {
+    setSelected(t);
     setScrollRequest((n) => n + 1);
   }, []);
   useEffect(() => {
@@ -214,11 +205,19 @@ export default function Scanner() {
     reportRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }, [scrollRequest]);
 
-  const error = main.error && !main.data ? main.error.message : null;
+  // The freshest summary for the selected token, then its full details. Sample
+  // data already contains everything, so it needs no detail request.
+  const current = selected ? (known.find((t) => t.id === selected.id) ?? selected) : undefined;
+  const detailQuery = useQuery({
+    queryKey: ["token", current?.contractAddress],
+    queryFn: () => loadDetail(current!),
+    enabled: live && Boolean(current?.contractAddress),
+    ...refresh,
+  });
+  const detail = useWalletQuotedSpread(live ? detailQuery.data : (current as TokenizedStock | undefined));
+  const analysis = useMemo(() => (detail ? analyze(detail, clock) : null), [detail, clock]);
 
-  const listed = data?.tokens.find((t) => t.id === selectedId);
-  const selected = useWalletQuotedSpread(listed);
-  const analysis = useMemo(() => (selected ? analyze(selected, clock) : null), [selected, clock]);
+  const error = main.error && !main.data ? main.error.message : null;
 
   if (error) {
     return (
@@ -235,7 +234,7 @@ export default function Scanner() {
   // under the report; phones: one column (picker, report, Buy panel).
   return (
     <div className="grid grid-cols-1 gap-6">
-      <MarketTicker tokens={data.tokens} selectedId={selectedId} onSelect={selectToken} />
+      <MarketTicker tokens={data.tokens} selectedId={current?.id ?? ""} onSelect={selectToken} />
       <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)] md:items-start xl:grid-cols-[260px_minmax(0,1fr)_320px]">
         <div className="min-w-0 md:row-span-2 xl:row-span-1">
           <p className="mb-4 flex items-center gap-2 text-sm">
@@ -251,26 +250,64 @@ export default function Scanner() {
           <DataSource data={data} refreshFailed={main.isRefetchError} />
           <TokenPicker
             tokens={data.tokens}
-            selectedId={selectedId}
+            total={data.total}
+            known={known}
+            live={live}
+            selectedId={current?.id ?? ""}
             onSelect={selectToken}
-            onSearchAll={data.source === "live" ? searchAll : undefined}
             watchlist={watchlist.ids}
-            watchlistPending={restoring}
+            watchlistPending={restored.pending}
             onToggleWatch={watchlist.toggle}
-            clock={clock}
           />
         </div>
-        {selected && analysis && (
-          <>
-            <div ref={reportRef} className="min-w-0 scroll-mt-4 md:col-start-2">
-              <TokenReport token={selected} analysis={analysis} />
+        <div ref={reportRef} className="min-w-0 scroll-mt-4 md:col-start-2">
+          {detail && analysis ? (
+            <TokenReport token={detail} analysis={analysis} />
+          ) : detailQuery.isError ? (
+            <div role="alert" className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm">
+              <p>
+                Couldn’t load details for {current?.symbol}: {detailQuery.error.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => void detailQuery.refetch()}
+                className="mt-2 rounded-lg border border-line bg-card px-3 py-1.5 font-semibold"
+              >
+                Try again
+              </button>
             </div>
-            <div className="min-w-0 md:col-start-2 xl:col-start-3 xl:row-start-1">
-              {/* key resets the form whenever a different token is picked */}
-              <BuyPanel key={selected.id} token={selected} analysis={analysis} />
-            </div>
-          </>
+          ) : (
+            current && <ReportSkeleton symbol={current.symbol} />
+          )}
+        </div>
+        {detail && analysis && (
+          <div className="min-w-0 md:col-start-2 xl:col-start-3 xl:row-start-1">
+            {/* key resets the form whenever a different token is picked */}
+            <BuyPanel key={detail.id} token={detail} analysis={analysis} />
+          </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Shown while the selected token's details load (a second or two).
+function ReportSkeleton({ symbol }: { symbol: string }) {
+  const block = "animate-pulse rounded-2xl bg-line/60";
+  return (
+    <div className="grid gap-4" aria-busy="true">
+      <p className="sr-only" aria-live="polite">
+        Loading details for {symbol}…
+      </p>
+      <div className={`${block} h-24`} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`${block} h-36`} />
+        <div className={`${block} h-36`} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className={`${block} h-32`} />
+        ))}
       </div>
     </div>
   );

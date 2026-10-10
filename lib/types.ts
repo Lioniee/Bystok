@@ -10,7 +10,8 @@ export type TokenizedStock = {
     ticker: string; // e.g. "TSLA"
     name: string; // e.g. "Tesla, Inc."
     exchange: string; // e.g. "NASDAQ"
-    price: number; // reference price of the real stock, USD
+    price: number; // reference price of ONE share of the real stock, USD
+    sharesPerToken?: number; // how many shares one token tracks (default 1; NFLXon is 10)
     marketCapUsd?: number;
     high52w?: number;
     low52w?: number;
@@ -34,8 +35,24 @@ export type TokenizedStock = {
   warnings: string[]; // live notices, e.g. "issuer paused trading: weekend"
 };
 
+// The light version used by the list, ticker and search: only what a card
+// shows. Details (liquidity, spread, provider, …) are fetched for the selected
+// token alone. A full TokenizedStock also satisfies this shape.
+export type TokenSummary = {
+  id: string;
+  symbol: string;
+  chain: string;
+  contractAddress?: string;
+  provider: { name: string };
+  underlying: { ticker: string; name: string };
+  tokenPrice: number;
+  change24hPct?: number;
+  volume24hUsd: number; // on-chain token volume
+};
+
 export type TokensResponse = {
-  tokens: TokenizedStock[];
+  tokens: TokenSummary[];
+  total?: number; // tokens in the full list (e.g. 488), when known
   source: "sample" | "live";
   updatedAt: string;
   notice?: string; // why we fell back to sample data, in plain words

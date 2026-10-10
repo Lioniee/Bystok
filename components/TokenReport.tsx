@@ -52,6 +52,14 @@ export default function TokenReport({ token, analysis }: { token: TokenizedStock
             <dd className="text-right tabular-nums">{usd(token.underlying.price)}</dd>
             <dt className="text-muted">Token price</dt>
             <dd className="text-right tabular-nums">{usd(token.tokenPrice)}</dd>
+            {token.underlying.sharesPerToken !== undefined && Math.abs(token.underlying.sharesPerToken - 1) > 0.005 && (
+              <>
+                <dt className="text-muted">Shares per token</dt>
+                <dd className="text-right tabular-nums">
+                  {token.underlying.sharesPerToken.toLocaleString("en-US", { maximumFractionDigits: 4 })}
+                </dd>
+              </>
+            )}
             <dt className="text-muted">Token 24h volume</dt>
             <dd className="text-right tabular-nums">{compactUsd(token.volume24hUsd)}</dd>
             {token.holders !== undefined && (

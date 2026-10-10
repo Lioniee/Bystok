@@ -19,6 +19,9 @@ import { createHmac } from "node:crypto";
 
 const RECV_WINDOW_MS = "60000";
 
+// Calls slower than this are logged (path only, never keys or bodies).
+const SLOW_CALL_MS = 1500;
+
 const ORIGIN = "https://web3.binance.com";
 const PREFIX = "/build";
 
@@ -118,6 +121,7 @@ async function send<T>(method: string, path: string, requestPath: string, body: 
   if (!apiKey || !secret) throw new BinanceWeb3Error("40101", 0, "Missing API credentials");
 
   await waitForSlot(path);
+  const started = Date.now();
   const timestamp = new Date().toISOString();
 
   const res = await fetch(ORIGIN + requestPath, {
@@ -134,6 +138,8 @@ async function send<T>(method: string, path: string, requestPath: string, body: 
   });
 
   const text = await res.text();
+  const took = Date.now() - started;
+  if (took > SLOW_CALL_MS) console.warn(`Binance Web3 API slow call: ${method} ${path} took ${(took / 1000).toFixed(1)}s`);
   // Most endpoints answer { code, msg, data }; a wrong HTTP method gets a different
   // envelope: { status: "ERROR", code: "000002", errorData }.
   let json: { code?: string | number; msg?: string; message?: string; errorData?: string; data?: T } | undefined;

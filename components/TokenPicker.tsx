@@ -1,89 +1,103 @@
 "use client";
 
-import { useState } from "react";
-import type { TokenizedStock } from "@/lib/types";
-import { analyze } from "@/lib/analysis";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { TokenSummary } from "@/lib/types";
 import { usd } from "@/lib/format";
-import type { MarketClock } from "@/lib/market-hours";
-import { LEVEL_STYLES } from "./LevelBadge";
 import PriceChange from "./PriceChange";
+import { loadTokens } from "./token-api";
 
 type Tab = "markets" | "watchlist";
 
 // On phones the list starts collapsed to this many cards.
 const PHONE_PREVIEW = 4;
+// Wait this long after the last keystroke before searching the server.
+const SEARCH_DELAY_MS = 300;
 
 type Props = {
-  tokens: TokenizedStock[];
+  tokens: TokenSummary[]; // the top-30 list
+  total?: number; // size of the full list, e.g. 488
+  known: TokenSummary[]; // list + watched tokens outside it
+  live: boolean; // false on sample data: search can't reach the full list
   selectedId: string;
-  onSelect: (id: string) => void;
-  onSearchAll?: (query: string) => Promise<number>; // server-side search across every token
+  onSelect: (t: TokenSummary) => void;
   watchlist: Set<string>;
-  watchlistPending: number; // saved tokens still being fetched after a reload
-  onToggleWatch: (t: TokenizedStock) => void;
-  clock: MarketClock;
+  watchlistPending: number; // saved tokens still being fetched
+  onToggleWatch: (t: TokenSummary) => void;
 };
 
-// Tabs, search and a vertical list of token cards. On phones the list shows
-// the first few cards with a "Show all stocks" toggle; on desktop (the sidebar)
-// it always shows everything.
+const matchesText = (t: TokenSummary, q: string) =>
+  [t.symbol, t.underlying.ticker, t.underlying.name].some((s) => s.toLowerCase().includes(q));
+
+function useDebounced<T>(value: T, ms: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+// Tabs, search and a vertical list of token cards. Typing filters what's
+// already loaded straight away, then searches all ~488 tokens on the server
+// (by ticker and company name, both the bStock and Ondo versions). On phones
+// the list shows the first few cards with a "Show all stocks" toggle.
 export default function TokenPicker(props: Props) {
-  const { tokens, selectedId, onSelect, onSearchAll, watchlist, watchlistPending, onToggleWatch, clock } = props;
+  const { tokens, total, known, live, selectedId, onSelect, watchlist, watchlistPending, onToggleWatch } = props;
   const [tab, setTab] = useState<Tab>("markets");
   const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchNote, setSearchNote] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  async function searchAll() {
-    if (!onSearchAll) return;
-    setSearching(true);
-    setSearchNote(null);
-    try {
-      const n = await onSearchAll(query.trim());
-      if (n === 0) setSearchNote(`No tokenized stocks on BNB Chain match “${query}”.`);
-    } catch {
-      setSearchNote("Search failed. Try again in a moment.");
-    } finally {
-      setSearching(false);
-    }
-  }
+  const q = query.trim();
+  const qLower = q.toLowerCase();
+  const debounced = useDebounced(q, SEARCH_DELAY_MS);
+  const searching = tab === "markets" && Boolean(q);
+  const server = useQuery({
+    queryKey: ["tokens", debounced],
+    queryFn: () => loadTokens(debounced),
+    enabled: live && searching && debounced === q,
+    staleTime: 30_000,
+  });
 
-  const q = query.trim().toLowerCase();
-  const inTab = tab === "watchlist" ? tokens.filter((t) => watchlist.has(t.id)) : tokens;
-  const filtered = inTab.filter((t) =>
-    [t.symbol, t.underlying.ticker, t.underlying.name].some((s) => s.toLowerCase().includes(q)),
-  );
+  let shown: TokenSummary[];
+  if (tab === "watchlist") {
+    shown = known.filter((t) => watchlist.has(t.id) && (!q || matchesText(t, qLower)));
+  } else if (!q) {
+    shown = tokens;
+  } else {
+    // Server results first (they cover the full list), then local matches.
+    const fromServer = live && debounced === q ? (server.data?.tokens ?? []) : [];
+    const seen = new Set<string>();
+    shown = [...fromServer, ...known.filter((t) => matchesText(t, qLower))].filter(
+      (t) => !seen.has(t.id) && seen.add(t.id),
+    );
+  }
+  const waiting = searching && live && (debounced !== q || server.isFetching);
 
   // Collapsing is done with CSS (max-md:hidden) so desktop never flickers; a
   // search always shows every match.
-  const collapsible = !q && filtered.length > PHONE_PREVIEW;
+  const collapsible = !q && shown.length > PHONE_PREVIEW;
 
-  const card = (t: TokenizedStock, index: number) => {
-    const verdict = analyze(t, clock).verdict;
+  const card = (t: TokenSummary, index: number) => {
     const active = t.id === selectedId;
     const watched = watchlist.has(t.id);
-    const change = t.change24hPct;
     return (
       <li key={t.id} className={`relative ${collapsible && !expanded && index >= PHONE_PREVIEW ? "max-md:hidden" : ""}`}>
         <button
           type="button"
-          onClick={() => onSelect(t.id)}
+          onClick={() => onSelect(t)}
           aria-pressed={active}
           className={`flex w-full items-center justify-between gap-3 rounded-xl border py-2.5 pl-3 pr-12 text-left transition ${
             active ? "border-brand bg-brand/10" : "border-line bg-card hover:border-muted"
           }`}
         >
           <span className="min-w-0">
-            <span className="flex items-center gap-1.5 font-semibold">
-              {t.symbol}
-              <span className={`size-1.5 rounded-full ${LEVEL_STYLES[verdict.level].dot}`} title={verdict.title} />
-            </span>
+            <span className="block font-semibold">{t.symbol}</span>
             <span className="block truncate text-xs text-muted">{t.underlying.name}</span>
           </span>
           <span className="flex shrink-0 flex-col items-end">
             <span className="text-sm font-medium tabular-nums">{usd(t.tokenPrice)}</span>
-            {change !== undefined && <PriceChange pctValue={change} />}
+            {t.change24hPct !== undefined && <PriceChange pctValue={t.change24hPct} />}
           </span>
         </button>
         <button
@@ -107,6 +121,31 @@ export default function TokenPicker(props: Props) {
     );
   };
 
+  let empty: React.ReactNode = null;
+  if (shown.length === 0) {
+    if (tab === "watchlist" && !q) {
+      empty =
+        watchlistPending > 0 ? (
+          "Loading your saved stocks…"
+        ) : (
+          <span className="block rounded-xl border border-dashed border-line p-4 text-center">
+            <span className="mx-auto mb-2 grid size-8 place-items-center rounded-full border border-line font-bold">
+              +
+            </span>
+            Tap + on any stock to watch it here.
+          </span>
+        );
+    } else if (waiting) {
+      empty = "Searching all stocks…";
+    } else if (searching && server.isError) {
+      empty = "Search failed. Try again in a moment.";
+    } else {
+      empty = `No ${tab === "watchlist" ? "watched " : ""}stocks found for “${q}”.${
+        searching && !live ? " Searching all stocks needs live data." : ""
+      }`;
+    }
+  }
+
   return (
     <section aria-label="Pick a tokenized stock" className="min-w-0">
       <div role="tablist" aria-label="Token lists" className="mb-3 flex gap-1 rounded-xl border border-line bg-card p-1">
@@ -118,10 +157,7 @@ export default function TokenPicker(props: Props) {
             id={`tab-${id}`}
             aria-selected={tab === id}
             aria-controls="token-list"
-            onClick={() => {
-              setTab(id);
-              setSearchNote(null);
-            }}
+            onClick={() => setTab(id)}
             className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
               tab === id ? "bg-brand text-brand-fg" : "text-muted hover:text-fg"
             }`}
@@ -138,44 +174,27 @@ export default function TokenPicker(props: Props) {
         id="token-search"
         type="search"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setSearchNote(null);
-        }}
-        placeholder="Search TSLA, Apple, SPY…"
-        className="mb-3 w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search PLTR, Netflix, Disney…"
+        autoComplete="off"
+        className="mb-2 w-full rounded-xl border border-line bg-card px-3 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
       />
 
-      <ul id="token-list" role="tabpanel" aria-labelledby={`tab-${tab}`} className="flex flex-col gap-2">
-        {filtered.map((t, i) => card(t, i))}
+      <p className="mb-2 px-1 text-xs text-muted" data-list-count aria-live="polite">
+        {tab === "watchlist"
+          ? `${shown.length} watched`
+          : q
+            ? waiting && shown.length > 0
+              ? `${shown.length} found so far · searching all stocks…`
+              : `${shown.length} found`
+            : total && total > tokens.length
+              ? `${tokens.length} of ${total} stocks · search for more`
+              : `${tokens.length} stocks`}
+      </p>
 
-        {filtered.length === 0 && (
-          <li className="px-1 py-2 text-sm text-muted">
-            {tab === "watchlist" && !q ? (
-              watchlistPending > 0 ? (
-                "Loading your saved stocks…"
-              ) : (
-                <span className="block rounded-xl border border-dashed border-line p-4 text-center">
-                  <span className="mx-auto mb-2 grid size-8 place-items-center rounded-full border border-line font-bold">
-                    +
-                  </span>
-                  Tap + on any stock to watch it here.
-                </span>
-              )
-            ) : tab === "markets" && onSearchAll && !searchNote ? (
-              <button
-                type="button"
-                onClick={searchAll}
-                disabled={searching}
-                className="rounded-lg border border-line px-3 py-1.5 text-fg hover:border-muted disabled:opacity-50"
-              >
-                {searching ? "Searching…" : `Search all tokens for “${query.trim()}”`}
-              </button>
-            ) : (
-              (searchNote ?? `No ${tab === "watchlist" ? "watched " : ""}stocks match “${query}”.`)
-            )}
-          </li>
-        )}
+      <ul id="token-list" role="tabpanel" aria-labelledby={`tab-${tab}`} className="flex flex-col gap-2">
+        {shown.map((t, i) => card(t, i))}
+        {empty && <li className="px-1 py-2 text-sm text-muted">{empty}</li>}
       </ul>
 
       {collapsible && (
@@ -186,7 +205,7 @@ export default function TokenPicker(props: Props) {
           aria-controls="token-list"
           className="mt-2 w-full rounded-xl border border-line bg-card py-2.5 text-sm font-semibold hover:border-muted md:hidden"
         >
-          {expanded ? "Show less" : `Show all stocks (${filtered.length})`}
+          {expanded ? "Show less" : `Show all stocks (${shown.length})`}
         </button>
       )}
     </section>
