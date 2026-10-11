@@ -37,8 +37,8 @@ const TABS: Tab[] = [
     ),
   },
   {
-    href: "/mystoks",
-    label: "MyStoks",
+    href: "/mystocks",
+    label: "MyStocks",
     icon: icon(
       <>
         <rect x="3.5" y="6.5" width="17" height="13" rx="2.5" />

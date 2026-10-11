@@ -61,8 +61,8 @@ const ENDPOINTS: [string, string][] = [
   ["GET /api/v1/dex/market/token/top-liquidity", "Liquidity: the token's trading pools."],
   ["GET /api/v1/dex/aggregator/quote", "Spread (a $100 buy and sell-back quote) and the live buy quote."],
   ["POST /api/v1/dex/balance/token-balances-by-address", "The connected wallet's USDT and BNB balances."],
-  ["GET /api/v1/dex/balance/all-token-balances-by-address", "Every token the connected wallet holds, filtered to tokenized stocks for MyStoks."],
-  ["GET /api/v1/dex/market/portfolio/token/latest-pnl", "Average on-chain buy price per holding, for MyStoks profit/loss."],
+  ["GET /api/v1/dex/balance/all-token-balances-by-address", "Every token the connected wallet holds, filtered to tokenized stocks for MyStocks."],
+  ["GET /api/v1/dex/market/portfolio/token/latest-pnl", "Average on-chain buy price per holding, for MyStocks profit/loss."],
 ];
 
 const CHECKS: { name: string; good: string; caution: string; risky: string; note: string }[] = [

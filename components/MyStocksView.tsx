@@ -40,9 +40,9 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-dashed border-line bg-card p-8 text-center">{children}</div>;
 }
 
-// MyStoks: the connected wallet's tokenized stocks, read-only. Nothing here can
+// MyStocks: the connected wallet's tokenized stocks, read-only. Nothing here can
 // sell or send anything.
-export default function MyStoksView() {
+export default function MyStocksView() {
   const wallet = useWallet();
   const { status } = useConnection();
   const { select } = useSelectedToken();

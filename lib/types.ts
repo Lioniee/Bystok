@@ -84,7 +84,7 @@ export type QuoteSummary = {
 // Every API route in the buy flow answers with one of these.
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; marketClosed?: boolean };
 
-// --- Holdings (MyStoks) ----------------------------------------------------------
+// --- Holdings (MyStocks) ----------------------------------------------------------
 
 // Profit/loss of what's held now: value minus cost at the average buy price.
 // Only given when the API's trade history covers the whole balance.
