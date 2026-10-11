@@ -17,7 +17,7 @@ Bystok is a tokenized-stock scanner for BNB Chain. Tokenized stocks (like NVDAB 
 - **Live US market clock**: open/closed with a countdown, in New York time.
 - **Wallet connect** on BNB Chain (Binance Web3 Wallet, MetaMask, WalletConnect, or "Open in MetaMask" on phones), showing USDT/BNB balances and a **live buy quote** that refreshes every 30 seconds, with guards for low balances.
 - **Fresh data**: refreshed every 30 seconds, with an "updated" time in your time zone and a **Delayed** warning if refreshes fail.
-- **Four pages**: Scan (list and report), Swap (the Buy panel), MyStoks (holdings, coming with buying) and Docs. The selected stock carries across them.
+- **Four pages**: Scan (list and report), Swap (the Buy panel), MyStoks (the connected wallet's tokenized stocks, value and P/L, read-only) and Docs. The selected stock carries across them.
 - Works on phones (bottom tab bar) and desktop (tabs in the header), with a light/dark toggle that remembers your choice, and respects reduced-motion settings.
 
 ## Binance Web3 API endpoints used
@@ -36,6 +36,8 @@ All calls go to `https://web3.binance.com/build`, signed on the server with HMAC
 | `GET /api/v1/dex/market/token/top-liquidity` | Liquidity: sum of the token's trading pools |
 | `GET /api/v1/dex/aggregator/quote` | Spread (a $100 buy and sell-back quote) and the live buy quote |
 | `POST /api/v1/dex/balance/token-balances-by-address` | The connected wallet's USDT and BNB balances |
+| `GET /api/v1/dex/balance/all-token-balances-by-address` | Every token the connected wallet holds, filtered to tokenized stocks (MyStoks) |
+| `GET /api/v1/dex/market/portfolio/token/latest-pnl` | Average on-chain buy price per holding, for profit/loss (MyStoks) |
 
 Responses are cached on the server for 30 seconds and paced to stay under the 5 requests/second limit. Heavy details (profile, pools, spread) are fetched only for the stock you select.
 

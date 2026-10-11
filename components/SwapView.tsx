@@ -29,7 +29,7 @@ export default function SwapView() {
   const options = data ? (current && !data.tokens.some((t) => t.id === current.id) ? [current, ...data.tokens] : data.tokens) : [];
 
   return (
-    <div className="mx-auto grid max-w-lg gap-4">
+    <div className="mx-auto grid max-w-lg grid-cols-1 gap-4">
       <div>
         <h1 className="text-2xl font-bold">Swap</h1>
         <p className="text-sm text-muted">Buy a tokenized stock with USDT on BNB Chain.</p>

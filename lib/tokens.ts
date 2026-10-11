@@ -274,6 +274,33 @@ async function searchTokens(query: string): Promise<TokenSummary[]> {
 
 // --- Details for one token -------------------------------------------------------
 
+// --- Holdings ------------------------------------------------------------------------
+
+// Addresses of every listed tokenized stock (lowercase), for filtering a wallet's tokens.
+export async function listedAddresses() {
+  return new Set((await catalog()).map((t) => lower(t.tokenContractAddress)));
+}
+
+// Light summary for a token a wallet holds, or null if it isn't a tokenized
+// stock. Tokens /rwa/tokens leaves out are confirmed through their issuer profile.
+export async function describeToken(address: string, symbol: string, price?: number): Promise<TokenSummary | null> {
+  const listed = (await catalog()).find((t) => lower(t.tokenContractAddress) === lower(address));
+  if (listed) return summary({ ...fromCatalog(listed), price: price ?? num(listed.tokenPrice) });
+  const profile = await web3Request<UnderlyingProfile>("GET", "/api/v1/dex/market/rwa/underlying-profile", {
+    query: { binanceChainId: CHAIN_ID, tokenContractAddress: address },
+    ttlMs: HOUR,
+  }).catch(() => undefined);
+  if (!profile?.platformId) return null;
+  return summary({
+    address,
+    symbol,
+    platformId: profile.platformId,
+    ticker: profile.underlyingTicker ?? symbol,
+    name: profile.underlyingFullName ?? symbol,
+    price,
+  });
+}
+
 // True if the address is a tokenized stock on BNB Chain. Used to validate input
 // to the detail, quote and spread routes, so they can't be used as an open proxy.
 // Tokens missing from /rwa/tokens are confirmed through their underlying profile.
